@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+{% block title %}Kothegudam — DROGO AEROSPACE{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+<style>
+  html,body{height:100%;overflow:hidden;}
+  .kgm-page{height:100vh;display:flex;flex-direction:column;background:var(--bg-base);}
+  .kgm-map-wrap{flex:1;min-height:0;position:relative;}
+  #kgm-map{position:absolute;inset:0;}
+  .leaflet-control-zoom a{background:var(--bg-panel)!important;color:var(--accent-light)!important;border-color:var(--border-soft)!important;}
+  .leaflet-control-zoom a:hover{background:var(--bg-elevated-2)!important;color:var(--accent)!important;}
+  /* hide leaflet-draw's own default toolbar — we drive it from our custom panel */
+  .leaflet-draw.leaflet-control{display:none;}
+
+  /* ── Survey tools panel ─────────────────────────────────────────────── */
+  .kgm-tools{
+    position:absolute;top:18px;right:18px;z-index:900;
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-lg);
+    box-shadow:0 10px 30px -10px rgba(27,30,36,.25);
+    padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;
+  }
+  .kgm-tools-label{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-bottom:6px;}
+  .kgm-tools-divider{width:32px;height:1px;background:var(--border-soft);margin:6px 0;}
+  .kgm-tool-btn{
+    width:42px;height:42px;border-radius:11px;border:1px solid transparent;background:transparent;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);
+    transition:background .15s,color .15s,border-color .15s;position:relative;
+  }
+  .kgm-tool-btn svg{width:19px;height:19px;}
+  .kgm-tool-btn:hover{background:var(--bg-elevated-2);color:var(--text-primary);}
+  .kgm-tool-btn.active{background:rgba(63,66,73,.1);border-color:var(--accent);color:var(--accent);}
+  .kgm-tool-btn.danger:hover{background:rgba(201,75,66,.08);color:var(--danger);}
+
+  /* tooltip on hover */
+  .kgm-tool-btn::after{
+    content:attr(data-label);position:absolute;right:52px;top:50%;transform:translateY(-50%);
+    background:var(--accent-deep);color:#fff;font-size:11px;font-weight:600;padding:5px 10px;border-radius:6px;
+    white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;
+  }
+  .kgm-tool-btn:hover::after{opacity:1;}
+
+  /* ── Stats panel (Info toggle) ──────────────────────────────────────── */
+  .kgm-stats{
+    position:absolute;top:18px;right:96px;z-index:900;min-width:200px;
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-lg);
+    box-shadow:0 10px 30px -10px rgba(27,30,36,.25);padding:16px 18px;display:none;
+  }
+  .kgm-stats.show{display:block;}
+  .kgm-stats-title{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-bottom:10px;}
+  .kgm-stats-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-secondary);padding:4px 0;}
+  .kgm-stats-row b{color:var(--text-primary);font-weight:700;}
+
+  /* ── Toast ──────────────────────────────────────────────────────────── */
+  .kgm-toast{
+    position:absolute;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);z-index:1000;
+    background:var(--accent-deep);color:#fff;font-size:12.5px;font-weight:600;padding:10px 18px;border-radius:30px;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;
+  }
+  .kgm-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* popup on drawn shapes */
+  .kgm-shape-popup{font-size:12px;color:var(--text-secondary);line-height:1.7;}
+  .kgm-shape-popup b{color:var(--text-primary);}
+  .kgm-shape-popup .kgm-del{
+    margin-top:6px;display:inline-block;font-size:11.5px;font-weight:700;color:var(--danger);cursor:pointer;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="kgm-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 18L7 12L11 15L15 9L22 18H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="15" cy="7" r="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="15" y1="2" x2="15" y2="5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12.5" y1="4" x2="14" y2="5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="17.5" y1="4" x2="16" y2="5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">Kothegudam <span>/ Land Survey</span></div>
+      <a href="{{ url_for('land_survey_dashboard') }}" class="btn-logout">← Land Survey</a>
+    </div>
+  </nav>
+  <div class="kgm-map-wrap">
+    <div id="kgm-map"></div>
+
+    <!-- Survey tools -->
+    <div class="kgm-tools" id="kgm-tools">
+      <div class="kgm-tools-label">Tools</div>
+
+      <button class="kgm-tool-btn" id="tool-marker" data-label="Place Point" onclick="kgmActivate('marker')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.2-7-11.2C5 5.5 8.1 3 12 3s7 2.5 7 6.8C19 14.8 12 21 12 21Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.1" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+
+      <button class="kgm-tool-btn" id="tool-line" data-label="Measure Line" onclick="kgmActivate('line')">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="5" cy="19" r="1.8" stroke="currentColor" stroke-width="1.5"/><circle cx="19" cy="5" r="1.8" stroke="currentColor" stroke-width="1.5"/><path d="M6.3 17.7 17.7 6.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+
+      <button class="kgm-tool-btn" id="tool-rect" data-label="Measure Rectangle" onclick="kgmActivate('rect')">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="6.5" width="16" height="11" rx="1.4" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+
+      <button class="kgm-tool-btn" id="tool-circle" data-label="Measure Circle" onclick="kgmActivate('circle')">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7.5" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+
+      <button class="kgm-tool-btn" id="tool-polygon" data-label="Measure Polygon" onclick="kgmActivate('polygon')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 20 9.2 17 19H7L4 9.2 12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </button>
+
+      <div class="kgm-tools-divider"></div>
+
+      <button class="kgm-tool-btn" id="tool-edit" data-label="Edit Shapes" onclick="kgmToggleEdit()">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0 0-3l-1-1a2.1 2.1 0 0 0-3 0L4 16v4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M14 6.5 17.5 10" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+
+      <button class="kgm-tool-btn danger" id="tool-clear" data-label="Clear All" onclick="kgmClearAll()">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9 7V5.2C9 4.5 9.6 4 10.2 4h3.6c.7 0 1.2.5 1.2 1.2V7" stroke="currentColor" stroke-width="1.6"/><path d="M7 7l1 12.2c0 1 .8 1.8 1.8 1.8h4.4c1 0 1.8-.8 1.8-1.8L17 7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </button>
+
+      <div class="kgm-tools-divider"></div>
+
+      <button class="kgm-tool-btn" id="tool-layers" data-label="Toggle Satellite / Street" onclick="kgmToggleLayer()">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 21 8 12 13 3 8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 12l9 5 9-5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 16l9 5 9-5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </button>
+
+      <button class="kgm-tool-btn" id="tool-export" data-label="Export GeoJSON" onclick="kgmExport()">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M7.5 10.5 12 15l4.5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2.2C4 20.2 4.8 21 5.8 21h12.4c1 0 1.8-.8 1.8-1.8V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+
+      <button class="kgm-tool-btn" id="tool-upload" data-label="Import (coming soon)" onclick="kgmComingSoon('Import shapefile/GeoJSON')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 15V3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M7.5 7.5 12 3l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2.2C4 20.2 4.8 21 5.8 21h12.4c1 0 1.8-.8 1.8-1.8V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+
+      <button class="kgm-tool-btn" id="tool-print" data-label="Print (coming soon)" onclick="kgmComingSoon('Print / export map view')">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="8.5" width="14" height="8" rx="1.4" stroke="currentColor" stroke-width="1.6"/><path d="M7 8.5V4.8C7 4.4 7.4 4 7.8 4h8.4c.4 0 .8.4.8.8V8.5" stroke="currentColor" stroke-width="1.6"/><path d="M8 16.5h8V20H8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </button>
+
+      <div class="kgm-tools-divider"></div>
+
+      <button class="kgm-tool-btn" id="tool-info" data-label="Survey Summary" onclick="kgmToggleStats()">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
+      </button>
+    </div>
+
+    <!-- Survey summary panel -->
+    <div class="kgm-stats" id="kgm-stats">
+      <div class="kgm-stats-title">Survey Summary</div>
+      <div class="kgm-stats-row"><span>Points</span><b id="st-points">0</b></div>
+      <div class="kgm-stats-row"><span>Lines</span><b id="st-lines">0</b></div>
+      <div class="kgm-stats-row"><span>Areas</span><b id="st-areas">0</b></div>
+      <div class="kgm-stats-row"><span>Total Length</span><b id="st-length">0 m</b></div>
+      <div class="kgm-stats-row"><span>Total Area</span><b id="st-area">0 m²</b></div>
+    </div>
+
+    <div class="kgm-toast" id="kgm-toast"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script>
+  const kgmMap = L.map('kgm-map').setView([22.74, 88.22], 14);
+
+  const kgmSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    maxZoom: 19
+  }).addTo(kgmMap);
+
+  const kgmStreetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  });
+
+  let kgmOnSatellite = true;
+
+  // ── Drawn features layer ────────────────────────────────────────────────
+  const kgmDrawnItems = new L.FeatureGroup().addTo(kgmMap);
+
+  let kgmActiveHandler = null;
+  let kgmActiveTool = null;
+  let kgmEditHandler = null;
+  let kgmEditing = false;
+
+  const drawOpts = {
+    marker: new L.Draw.Marker(kgmMap),
+    line:   new L.Draw.Polyline(kgmMap, { showLength: true, metric: true, shapeOptions: { color: '#3f4249', weight: 3 } }),
+    rect:   new L.Draw.Rectangle(kgmMap, { showArea: true, metric: true, shapeOptions: { color: '#1f7e9c', weight: 2 } }),
+    circle: new L.Draw.Circle(kgmMap, { showRadius: true, metric: true, shapeOptions: { color: '#b9821f', weight: 2 } }),
+    polygon:new L.Draw.Polygon(kgmMap, { showArea: true, metric: true, shapeOptions: { color: '#1f9d68', weight: 2 } })
+  };
+
+  function kgmSetActiveBtn(tool) {
+    document.querySelectorAll('.kgm-tool-btn').forEach(b => b.classList.remove('active'));
+    if (tool) {
+      const map = { marker:'tool-marker', line:'tool-line', rect:'tool-rect', circle:'tool-circle', polygon:'tool-polygon' };
+      const id = map[tool];
+      if (id) document.getElementById(id).classList.add('active');
+    }
+  }
+
+  function kgmActivate(tool) {
+    if (kgmEditing) kgmToggleEdit(); // exit edit mode before drawing
+    if (kgmActiveHandler) kgmActiveHandler.disable();
+    if (kgmActiveTool === tool) { // toggle off if clicking same tool again
+      kgmActiveHandler = null; kgmActiveTool = null; kgmSetActiveBtn(null);
+      return;
+    }
+    kgmActiveHandler = drawOpts[tool];
+    kgmActiveTool = tool;
+    kgmActiveHandler.enable();
+    kgmSetActiveBtn(tool);
+  }
+
+  kgmMap.on(L.Draw.Event.CREATED, function (e) {
+    const layer = e.layer;
+    kgmDrawnItems.addLayer(layer);
+    kgmBindShapePopup(layer, e.layerType);
+    kgmActiveHandler = null; kgmActiveTool = null; kgmSetActiveBtn(null);
+    kgmUpdateStats();
+  });
+
+  // ── Measurement helpers ─────────────────────────────────────────────────
+  function fmtLength(m) {
+    return m >= 1000 ? (m/1000).toFixed(2) + ' km' : Math.round(m) + ' m';
+  }
+  function fmtArea(m2) {
+    return m2 >= 10000 ? (m2/10000).toFixed(2) + ' ha' : Math.round(m2) + ' m²';
+  }
+  function lineLength(latlngs) {
+    let d = 0;
+    for (let i = 1; i < latlngs.length; i++) d += latlngs[i-1].distanceTo(latlngs[i]);
+    return d;
+  }
+
+  function kgmBindShapePopup(layer, type) {
+    const el = document.createElement('div');
+    el.className = 'kgm-shape-popup';
+    let html = '';
+
+    if (type === 'marker') {
+      html = '<b>Survey Point</b><br/>' + layer.getLatLng().lat.toFixed(5) + ', ' + layer.getLatLng().lng.toFixed(5);
+    } else if (type === 'polyline') {
+      html = '<b>Line</b><br/>Length: <b>' + fmtLength(lineLength(layer.getLatLngs())) + '</b>';
+    } else if (type === 'rectangle' || type === 'polygon') {
+      const latlngs = layer.getLatLngs()[0];
+      const area = L.GeometryUtil.geodesicArea(latlngs);
+      html = '<b>' + (type === 'rectangle' ? 'Rectangle' : 'Polygon') + '</b><br/>Area: <b>' + fmtArea(area) + '</b>';
+    } else if (type === 'circle') {
+      const r = layer.getRadius();
+      html = '<b>Circle</b><br/>Radius: <b>' + fmtLength(r) + '</b><br/>Area: <b>' + fmtArea(Math.PI*r*r) + '</b>';
+    }
+
+    el.innerHTML = html + '<br/><span class="kgm-del">Delete</span>';
+    el.querySelector('.kgm-del').addEventListener('click', () => {
+      kgmDrawnItems.removeLayer(layer);
+      kgmUpdateStats();
+    });
+    layer.bindPopup(el);
+  }
+
+  function kgmUpdateStats() {
+    let points = 0, lines = 0, areas = 0, totalLength = 0, totalArea = 0;
+    kgmDrawnItems.eachLayer(layer => {
+      if (layer instanceof L.Marker) {
+        points++;
+      } else if (layer instanceof L.Circle) {
+        areas++; totalArea += Math.PI * Math.pow(layer.getRadius(), 2);
+      } else if (layer instanceof L.Polygon) {
+        areas++; totalArea += L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+      } else if (layer instanceof L.Polyline) {
+        lines++; totalLength += lineLength(layer.getLatLngs());
+      }
+    });
+    document.getElementById('st-points').textContent = points;
+    document.getElementById('st-lines').textContent = lines;
+    document.getElementById('st-areas').textContent = areas;
+    document.getElementById('st-length').textContent = fmtLength(totalLength);
+    document.getElementById('st-area').textContent = fmtArea(totalArea);
+  }
+
+  // ── Edit mode ────────────────────────────────────────────────────────────
+  function kgmToggleEdit() {
+    if (kgmActiveHandler) { kgmActiveHandler.disable(); kgmActiveHandler = null; kgmActiveTool = null; kgmSetActiveBtn(null); }
+    kgmEditing = !kgmEditing;
+    document.getElementById('tool-edit').classList.toggle('active', kgmEditing);
+    if (kgmEditing) {
+      kgmEditHandler = new L.EditToolbar.Edit(kgmMap, { featureGroup: kgmDrawnItems });
+      kgmEditHandler.enable();
+      kgmToast('Edit mode on — drag shape handles, click Edit again to finish');
+    } else if (kgmEditHandler) {
+      kgmEditHandler.save();
+      kgmEditHandler.disable();
+      kgmUpdateStats();
+    }
+  }
+
+  // ── Clear all ────────────────────────────────────────────────────────────
+  function kgmClearAll() {
+    if (kgmDrawnItems.getLayers().length === 0) return;
+    if (!confirm('Clear all drawn survey features from the map?')) return;
+    kgmDrawnItems.clearLayers();
+    kgmUpdateStats();
+  }
+
+  // ── Layer toggle ─────────────────────────────────────────────────────────
+  function kgmToggleLayer() {
+    if (kgmOnSatellite) {
+      kgmMap.removeLayer(kgmSatLayer);
+      kgmStreetLayer.addTo(kgmMap);
+      kgmToast('Street basemap');
+    } else {
+      kgmMap.removeLayer(kgmStreetLayer);
+      kgmSatLayer.addTo(kgmMap);
+      kgmToast('Satellite basemap');
+    }
+    kgmOnSatellite = !kgmOnSatellite;
+  }
+
+  // ── Export GeoJSON ──────────────────────────────────────────────────────
+  function kgmExport() {
+    if (kgmDrawnItems.getLayers().length === 0) { kgmToast('Nothing drawn yet to export'); return; }
+    const geojson = kgmDrawnItems.toGeoJSON();
+    const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'kothegudam-survey.geojson';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    kgmToast('Survey data exported');
+  }
+
+  // ── Stats panel toggle ──────────────────────────────────────────────────
+  function kgmToggleStats() {
+    document.getElementById('kgm-stats').classList.toggle('show');
+    document.getElementById('tool-info').classList.toggle('active');
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────────
+  let kgmToastTimer = null;
+  function kgmToast(msg) {
+    const t = document.getElementById('kgm-toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(kgmToastTimer);
+    kgmToastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  function kgmComingSoon(label) {
+    kgmToast(label + ' — coming soon');
+  }
+</script>
+{% endblock %}

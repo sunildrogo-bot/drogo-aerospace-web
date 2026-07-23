@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — DROGO AEROSPACE{% endblock %}
+
+{% block head %}
+<style>
+  .cd-page{min-height:100vh;display:flex;flex-direction:column;background:var(--bg-base);}
+  .cd-wrap{display:flex;flex:1;min-height:0;}
+  .cd-sidebar{width:240px;flex-shrink:0;background:var(--bg-panel);border-right:1px solid var(--border-soft);padding:22px 0;display:flex;flex-direction:column;}
+  .cd-sb-title{font-size:10px;letter-spacing:.25em;color:var(--text-muted);text-transform:uppercase;padding:0 22px 16px;font-weight:700;}
+  .cd-sb-item{display:flex;align-items:center;gap:11px;padding:11px 22px;font-size:13.5px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:background .15s,color .15s;border-left:3px solid transparent;margin:2px 0;}
+  .cd-sb-item:hover{background:rgba(63,66,73,.06);color:var(--text-primary);}
+  .cd-sb-item.active{background:rgba(63,66,73,.08);color:var(--accent);border-left-color:var(--accent);font-weight:700;}
+  .cd-sb-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--bg-elevated-2);flex-shrink:0;color:var(--text-secondary);}
+  .cd-sb-icon svg{width:16px;height:16px;}
+  .cd-sb-item.active .cd-sb-icon{background:rgba(63,66,73,.12);color:var(--accent);}
+  .cd-sb-badge{margin-left:auto;min-width:16px;height:16px;padding:0 4px;border-radius:10px;background:var(--danger);color:#fff;font-size:9.5px;font-weight:700;display:none;align-items:center;justify-content:center;line-height:1;}
+  .cd-sb-badge.show{display:inline-flex;}
+
+  .cd-content{flex:1;min-width:0;padding:34px 40px;overflow-y:auto;}
+  .cd-view{display:none;}
+  .cd-view.active{display:block;}
+  .cd-title{font-size:22px;font-weight:800;color:var(--text-primary);letter-spacing:.01em;}
+  .cd-sub{font-size:13px;color:var(--text-muted);margin-top:5px;margin-bottom:30px;}
+
+  /* Module cards — same look as admin module grid */
+  .module-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+  .module-card{position:relative;overflow:hidden;height:240px;border-radius:var(--radius-lg);cursor:pointer;border:1px solid var(--border);transition:transform .18s,box-shadow .18s,border-color .18s;background-size:cover;background-position:center;}
+  .module-card:hover{transform:translateY(-4px);border-color:var(--accent-card,var(--accent));box-shadow:0 18px 36px -16px rgba(27,30,36,.28);}
+  .module-card-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,11,22,.18) 0%,rgba(6,11,22,.58) 55%,rgba(6,11,22,.95) 100%);}
+  .module-card-content{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding:22px 22px 20px;}
+  .module-badge-icon{position:absolute;top:16px;left:18px;z-index:2;width:38px;height:38px;border-radius:10px;background:rgba(6,11,22,.55);border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);}
+  .module-badge-icon svg{width:19px;height:19px;}
+  .module-name{font-size:17px;font-weight:700;color:#fff;margin-bottom:6px;}
+  .module-desc{font-size:12.5px;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:14px;}
+  .module-meta{display:flex;gap:8px;flex-wrap:wrap;}
+  .module-chip{font-size:11px;padding:4px 11px;border-radius:20px;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8);background:rgba(255,255,255,.06);font-weight:500;}
+  .module-chip.active{border-color:rgba(31,157,104,.5);color:#8fe3bc;background:rgba(31,157,104,.18);}
+
+  .cd-empty{padding:60px 0;text-align:center;color:var(--text-muted);}
+
+  /* Settings sub-tabs */
+  .cd-subtabs{display:flex;gap:6px;margin-bottom:22px;border-bottom:1px solid var(--border-soft);}
+  .cd-subtab{padding:9px 15px;font-size:12.5px;font-weight:600;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;}
+  .cd-subtab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .cd-subview{display:none;}
+  .cd-subview.active{display:block;}
+
+  .settings-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:26px 28px;max-width:560px;}
+  .settings-card-title{font-size:15px;font-weight:800;color:var(--text-primary);margin-bottom:6px;}
+  .settings-card-desc{font-size:12.5px;color:var(--text-muted);line-height:1.6;margin-bottom:18px;}
+  .acct-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-soft);font-size:13px;}
+  .acct-row:last-child{border-bottom:none;}
+  .acct-label{color:var(--text-muted);font-weight:600;}
+  .acct-value{color:var(--text-primary);font-weight:600;}
+
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+  .field label{font-size:11.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;}
+  .field input[type=text]{background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13.5px;color:var(--text-primary);outline:none;font-family:var(--font);}
+  .error-msg{font-size:12.5px;color:var(--danger);}
+  .save-msg{font-size:12.5px;color:var(--success);margin-top:10px;display:none;}
+
+  .tk-row{padding:14px 0;border-bottom:1px solid var(--border-soft);}
+  .tk-row:last-child{border-bottom:none;}
+  .tk-row-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px;}
+  .tk-subject{font-size:13px;font-weight:700;color:var(--text-primary);}
+  .tk-pill{font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0;}
+  .tk-pill.st-open{background:rgba(201,75,66,.1);color:var(--danger);}
+  .tk-pill.st-checking{background:rgba(185,130,31,.1);color:var(--warning);}
+  .tk-pill.st-resolved{background:rgba(31,157,104,.1);color:var(--success);}
+  .tk-meta{font-size:11.5px;color:var(--text-muted);}
+  .tk-new-tag{font-size:9.5px;font-weight:700;color:var(--danger);text-transform:uppercase;letter-spacing:.04em;margin-left:6px;}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="cd-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="9" width="8" height="7" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="11" cy="12" r="0.9" fill="currentColor"/><circle cx="13" cy="12" r="0.9" fill="currentColor"/><path d="M11 14C11.5 14.6 12.5 14.6 13 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8 10L5.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M16 10L18.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8 15L5.5 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M16 15L18.5 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="5.2" cy="8.2" r="0.8" fill="currentColor"/><circle cx="18.8" cy="8.2" r="0.8" fill="currentColor"/><circle cx="5.2" cy="16.8" r="0.8" fill="currentColor"/><circle cx="18.8" cy="16.8" r="0.8" fill="currentColor"/><path d="M9 18H15" stroke="currentColor" stroke-width="1" opacity="0.3" stroke-linecap="round"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">Welcome, <span>{{ user_name.split()[0] }}</span></div>
+      {% if can_switch_admin %}
+      <a href="{{ url_for('switch_to_admin') }}" class="btn-logout" style="background:var(--bg-elevated-2);color:var(--text-primary);">Switch to Admin</a>
+      {% endif %}
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="cd-wrap">
+    <div class="cd-sidebar">
+      <div class="cd-sb-title">Navigation</div>
+      <div class="cd-sb-item active" onclick="cdNav('view-dashboard', this)">
+        <div class="cd-sb-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V13M10 19V9M16 19V5M22 19H2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div> Dashboard
+      </div>
+      <div class="cd-sb-item" onclick="cdNav('view-modules', this)">
+        <div class="cd-sb-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/></svg></div> Module Management
+      </div>
+      <div class="cd-sb-item" onclick="cdNav('view-settings', this)">
+        <div class="cd-sb-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2V5M12 19V22M22 12H19M5 12H2M19.07 4.93L16.95 7.05M7.05 16.95L4.93 19.07M19.07 19.07L16.95 16.95M7.05 7.05L4.93 4.93" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div> Settings
+        <span class="cd-sb-badge" id="cd-settings-badge">!</span>
+      </div>
+    </div>
+
+    <div class="cd-content">
+
+      <!-- Dashboard (nothing here yet) -->
+      <div id="view-dashboard" class="cd-view active">
+        <div class="cd-title">My Dashboard</div>
+        <div class="cd-sub">Coming soon.</div>
+        <div class="cd-empty"><p>Nothing to show here yet.</p></div>
+      </div>
+
+      <!-- Module Management -->
+      <div id="view-modules" class="cd-view">
+        <div class="cd-title">Module Management</div>
+        <div class="cd-sub">Modules assigned to your account.</div>
+
+        {% if modules %}
+        <div class="module-grid">
+          {% for m in modules %}
+          <div class="module-card"
+               style="--accent-card:{{ m.accent or '#b7caf1' }};background-image:url('{{ m.image or 'https://images.pexels.com/photos/611219/watt-electricity-sky-power-611219.jpeg?auto=compress&cs=tinysrgb&w=900' }}');"
+               onclick="window.location='{{ url_for(m.route) }}'">
+            <div class="module-badge-icon">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6V12L12 16L20 12V6L12 2Z" stroke="#eceef1" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 16V22" stroke="#eceef1" stroke-width="1.6"/><circle cx="12" cy="9" r="1.6" fill="#eceef1"/></svg>
+            </div>
+            <div class="module-card-scrim"></div>
+            <div class="module-card-content">
+              <div class="module-name">{{ m.name }}</div>
+              <div class="module-desc">{{ m.desc or ('Open your ' ~ m.name ~ ' workspace.') }}</div>
+              <div class="module-meta">
+                <span class="module-chip active">Active</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="cd-empty">
+          <p>No modules have been assigned to your account yet. Please contact your administrator.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Settings -->
+      <div id="view-settings" class="cd-view">
+        <div class="cd-title">Settings</div>
+        <div class="cd-sub">Your account details, and getting help with a problem.</div>
+
+        <div class="cd-subtabs">
+          <div class="cd-subtab active" onclick="cdSettingsSubNav('sub-account', this)">Account Details</div>
+          <div class="cd-subtab" onclick="cdSettingsSubNav('sub-help', this)">Help<span class="cd-sb-badge" id="help-subtab-badge" style="margin-left:6px;"></span></div>
+        </div>
+
+        <!-- Account Details -->
+        <div id="sub-account" class="cd-subview active">
+          <div class="settings-card">
+            <div class="settings-card-title">Account</div>
+            <div class="acct-row"><span class="acct-label">Name</span><span class="acct-value">{{ user_name }}</span></div>
+            <div class="acct-row"><span class="acct-label">Email</span><span class="acct-value">{{ user_email }}</span></div>
+            <div class="acct-row"><span class="acct-label">Role</span><span class="acct-value">{{ role }}</span></div>
+            <div class="acct-row"><span class="acct-label">Modules</span><span class="acct-value">{{ modules | map(attribute='name') | join(', ') if modules else '—' }}</span></div>
+          </div>
+        </div>
+
+        <!-- Help -->
+        <div id="sub-help" class="cd-subview">
+          <div class="settings-card">
+            <div class="settings-card-title">Describe a Problem</div>
+            <div class="settings-card-desc">Raise anything that's not working right — the Admin gets notified and will work it through to resolved.</div>
+            <div class="field">
+              <label>Subject</label>
+              <input type="text" id="help-subject" placeholder="Short summary of the problem"/>
+            </div>
+            <div class="field">
+              <label>Description</label>
+              <textarea id="help-description" rows="4" placeholder="What's happening? Steps to reproduce, if relevant."
+                style="background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13.5px;color:var(--text-primary);outline:none;font-family:var(--font);resize:vertical;"></textarea>
+            </div>
+            <div class="error-msg" id="help-error" style="display:none;margin-bottom:10px;"></div>
+            <div class="save-msg" id="help-success">Submitted — the Admin has been notified.</div>
+            <button type="button" class="btn-primary" id="help-submit-btn" onclick="submitHelpTicket()">Submit</button>
+          </div>
+
+          <div class="settings-card" style="margin-top:20px;">
+            <div class="settings-card-title">Your Requests</div>
+            <div id="my-tickets-list"><div style="color:var(--text-muted);font-size:12.5px;">Loading…</div></div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  function cdNav(viewId, el) {
+    document.querySelectorAll('.cd-sb-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.cd-view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+    if (viewId === 'view-settings') loadMyTickets();
+  }
+
+  function cdSettingsSubNav(viewId, el) {
+    document.querySelectorAll('.cd-subtab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.cd-subview').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+    if (viewId === 'sub-help') loadMyTickets(true);
+  }
+
+  function escapeHtmlCd(str) {
+    const d = document.createElement('div');
+    d.textContent = str == null ? '' : String(str);
+    return d.innerHTML;
+  }
+
+  function _tkPillClassCd(status) {
+    return status === 'Resolved' ? 'st-resolved' : status === 'Checking' ? 'st-checking' : 'st-open';
+  }
+
+  async function submitHelpTicket() {
+    const subjectInput = document.getElementById('help-subject');
+    const descInput = document.getElementById('help-description');
+    const errBox = document.getElementById('help-error');
+    const successMsg = document.getElementById('help-success');
+    const btn = document.getElementById('help-submit-btn');
+
+    errBox.style.display = 'none';
+    successMsg.style.display = 'none';
+
+    const subject = subjectInput.value.trim();
+    if (!subject) {
+      errBox.textContent = 'Please describe the problem in a few words (subject).';
+      errBox.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true; btn.textContent = 'Submitting…';
+    try {
+      const res = await fetch('/api/help-tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, description: descInput.value.trim(), reporter_type: 'Client' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        errBox.textContent = data.error || 'Could not submit — please try again.';
+        errBox.style.display = 'block';
+        return;
+      }
+      successMsg.style.display = 'block';
+      subjectInput.value = '';
+      descInput.value = '';
+      loadMyTickets();
+    } catch (e) {
+      errBox.textContent = 'Network error — please try again.';
+      errBox.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Submit';
+    }
+  }
+
+  // Loads the current user's own tickets, and lights up a small "!" badge
+  // on the Settings sidebar item (and a NEW tag per ticket) whenever
+  // Admin has updated a ticket's status since it was last viewed here.
+  async function loadMyTickets(markSeen) {
+    const list = document.getElementById('my-tickets-list');
+    try {
+      const res = await fetch('/api/help-tickets');
+      const data = await res.json();
+      const tickets = data.tickets || [];
+
+      const unseen = tickets.filter(t => !t.seen_by_reporter);
+      document.getElementById('cd-settings-badge').classList.toggle('show', unseen.length > 0);
+      const subBadge = document.getElementById('help-subtab-badge');
+      if (subBadge) {
+        subBadge.textContent = unseen.length || '';
+        subBadge.classList.toggle('show', unseen.length > 0);
+      }
+
+      if (!list) return;
+      if (!tickets.length) {
+        list.innerHTML = `<div style="color:var(--text-muted);font-size:12.5px;">Nothing submitted yet.</div>`;
+      } else {
+        list.innerHTML = tickets.map(t => `
+          <div class="tk-row">
+            <div class="tk-row-top">
+              <span class="tk-subject">${escapeHtmlCd(t.subject)}${!t.seen_by_reporter ? '<span class="tk-new-tag">Updated</span>' : ''}</span>
+              <span class="tk-pill ${_tkPillClassCd(t.status)}">${escapeHtmlCd(t.status)}</span>
+            </div>
+            <div class="tk-meta">${escapeHtmlCd(t.created_at)}</div>
+          </div>
+        `).join('');
+      }
+
+      // Mark seen only once the person actually opens the Help sub-tab.
+      if (markSeen && unseen.length) {
+        await Promise.all(unseen.map(t => fetch(`/api/help-tickets/${t.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mark_seen: true }),
+        })));
+        document.getElementById('cd-settings-badge').classList.remove('show');
+        if (subBadge) subBadge.classList.remove('show');
+      }
+    } catch (e) {
+      if (list) list.innerHTML = `<div style="color:var(--text-muted);font-size:12.5px;">Could not load your requests.</div>`;
+    }
+  }
+
+  loadMyTickets();
+</script>
+{% endblock %}

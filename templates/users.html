@@ -1,0 +1,780 @@
+{% extends "base.html" %}
+{% block title %}User Management — DROGO AEROSPACE{% endblock %}
+
+{% block head %}
+<style>
+/* ── Layout ── */
+.um-page  { height:100vh; overflow:hidden; display:flex; flex-direction:column; background:var(--bg-base); }
+.um-wrap  { display:flex; flex:1; min-height:0; }
+
+/* ── Sidebar (same as admin) ── */
+.admin-sidebar{width:240px;flex-shrink:0;background:var(--bg-panel);border-right:1px solid var(--border-soft);padding:22px 0;display:flex;flex-direction:column;}
+.admin-sb-title{font-size:10px;letter-spacing:.25em;color:var(--text-muted);text-transform:uppercase;padding:0 22px 16px;font-weight:700;}
+.admin-sb-item{display:flex;align-items:center;gap:11px;padding:11px 22px;font-size:13.5px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:background .15s,color .15s;border-left:3px solid transparent;margin:2px 0;text-decoration:none;}
+.admin-sb-item:hover{background:rgba(63,66,73,.06);color:var(--text-primary);}
+.admin-sb-item.active{background:rgba(63,66,73,.08);color:var(--accent);border-left-color:var(--accent);font-weight:700;}
+.admin-sb-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--bg-elevated-2);flex-shrink:0;color:var(--text-secondary);}
+.admin-sb-icon svg{width:16px;height:16px;}
+.admin-sb-item.active .admin-sb-icon{background:rgba(63,66,73,.12);color:var(--accent);}
+
+/* ── Main content ── */
+.um-content { flex:1; min-width:0; min-height:0; overflow-y:auto; background:var(--bg-base); display:flex; flex-direction:column; }
+
+/* ── Page header ── */
+.um-header {
+  padding: 28px 36px 0;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+}
+.um-header-left h1 { font-size:22px; font-weight:800; color:var(--text-primary); }
+.um-header-left p  { font-size:13px; color:var(--text-muted); margin-top:4px; }
+
+/* ── Toolbar ── */
+.um-toolbar {
+  padding: 18px 36px 0;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.search-wrap {
+  position: relative; flex: 1; min-width: 200px; max-width: 340px;
+}
+.search-wrap svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; color: var(--text-muted); pointer-events: none;
+}
+.search-input {
+  width: 100%; padding: 9px 12px 9px 36px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-primary);
+  outline: none; font-family: var(--font);
+}
+.search-input::placeholder { color: var(--text-muted); }
+.search-input:focus { border-color: var(--accent); }
+.filter-select {
+  padding: 9px 14px; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary);
+  outline: none; font-family: var(--font); cursor: pointer; min-width: 148px;
+}
+.filter-select:focus { border-color: var(--accent); }
+.toolbar-count { font-size: 13px; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
+
+/* ── Table ── */
+.table-card {
+  margin: 18px 36px 36px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+.data-table { width:100%; border-collapse:collapse; }
+.data-table thead { background: var(--bg-elevated-2); }
+.data-table th {
+  text-align:left; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--text-muted); padding:13px 18px; border-bottom:1px solid var(--border-soft);
+  font-weight:700; white-space:nowrap;
+}
+.data-table td { padding:13px 18px; font-size:13px; color:var(--text-secondary); border-bottom:1px solid var(--border-soft); }
+.data-table tr:last-child td { border-bottom:none; }
+.data-table tbody tr { cursor:pointer; }
+.data-table tbody tr:hover td { background:var(--bg-elevated-2); }
+
+/* ── Chips ── */
+.chip { display:inline-block; font-size:11px; padding:3px 10px; border-radius:20px; font-weight:600; border:1px solid; white-space:nowrap; }
+.chip-admin    { border-color:rgba(63,66,73,.3);   color:#3f4249; background:rgba(63,66,73,.07); }
+.chip-client   { border-color:rgba(31,128,157,.3); color:#1f7e9c; background:rgba(31,128,157,.07); }
+.chip-tline    { border-color:rgba(37,99,235,.3);  color:#2563eb; background:rgba(37,99,235,.07); }
+.chip-survey   { border-color:rgba(16,119,80,.3);  color:#107750; background:rgba(16,119,80,.07); }
+.chip-chimney  { border-color:rgba(140,80,20,.3);  color:#8c5014; background:rgba(140,80,20,.07); }
+.chip-active   { border-color:rgba(31,157,104,.35);color:#1f9d68; background:rgba(31,157,104,.08); }
+.chip-inactive { border-color:rgba(90,95,104,.3);  color:#5a5f68; background:rgba(90,95,104,.07); }
+.chip-pending  { border-color:rgba(185,130,31,.35);color:#b9821f; background:rgba(185,130,31,.08); }
+
+/* ── Action buttons ── */
+.action-btns { display:flex; gap:8px; }
+.act-btn {
+  width:30px; height:30px; border-radius:7px; border:1px solid var(--border);
+  background:var(--bg-elevated-2); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:all .15s; flex-shrink:0;
+}
+.act-btn svg { width:14px; height:14px; }
+.act-btn.edit:hover  { border-color:var(--accent); background:rgba(63,66,73,.1); color:var(--accent); }
+.act-btn.del:hover   { border-color:var(--danger);  background:rgba(201,75,66,.08); color:var(--danger); }
+
+/* ── Empty state ── */
+.empty-state { text-align:center; padding:64px 24px; color:var(--text-muted); }
+.empty-state svg { width:44px; height:44px; margin-bottom:14px; opacity:.35; }
+.empty-state p { font-size:14px; }
+
+/* ── Pagination ── */
+.pagination { display:flex; align-items:center; justify-content:flex-end; gap:6px; padding:14px 18px; border-top:1px solid var(--border-soft); }
+.pg-btn {
+  min-width:32px; height:32px; border-radius:7px; border:1px solid var(--border);
+  background:var(--bg-elevated-2); font-size:12px; font-weight:600; color:var(--text-secondary);
+  cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0 8px;
+  transition:all .15s;
+}
+.pg-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+.pg-btn.active  { background:var(--accent); border-color:var(--accent); color:#fff; }
+.pg-btn:disabled{ opacity:.35; cursor:not-allowed; }
+
+/* ── Modal backdrop ── */
+.modal-backdrop {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
+  z-index:900; align-items:center; justify-content:center;
+}
+.modal-backdrop.open { display:flex; }
+.modal {
+  background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:var(--radius-lg); width:100%; max-width:520px;
+  padding:28px 32px; box-shadow:0 20px 60px rgba(0,0,0,.18);
+  position:relative;
+}
+.modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; }
+.modal-title  { font-size:17px; font-weight:800; color:var(--text-primary); }
+.modal-close  { background:none; border:none; cursor:pointer; color:var(--text-muted); padding:4px; line-height:1; font-size:20px; }
+.modal-close:hover { color:var(--text-primary); }
+.modal-grid   { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+.modal-select {
+  background:var(--bg-elevated-2); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:10px 14px; font-size:13.5px; color:var(--text-primary); outline:none;
+  width:100%; font-family:var(--font);
+}
+.modal-select:focus { border-color:var(--accent); }
+
+/* ── Roles / Modules checkbox group ── */
+.cb-group {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+  background: var(--bg-elevated-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+}
+/* Specificity must beat base.html's ".field label" (0,1,1) rule */
+.cb-group label.cb-option {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 400; line-height: 1;
+  color: var(--text-primary); text-transform: none; letter-spacing: normal;
+  cursor: pointer; white-space: nowrap;
+}
+.cb-option input[type="checkbox"] {
+  width: 15px; height: 15px; margin: 0; flex-shrink: 0;
+  accent-color: var(--accent); cursor: pointer;
+}
+.cb-option span { display: inline-block; line-height: 1.2; }
+
+/* ── Detail modal ── */
+.detail-row { display:flex; padding:11px 0; border-bottom:1px solid var(--border-soft); gap:12px; align-items:center; }
+.detail-row:last-child { border-bottom:none; }
+.detail-label { font-size:11.5px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; min-width:130px; }
+.detail-val   { font-size:13.5px; color:var(--text-primary); }
+
+/* ── User cards (ID-card style) ── */
+.user-grid {
+  margin: 18px 36px 36px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px;
+}
+.user-card {
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 18px; cursor: pointer; transition: box-shadow .15s, border-color .15s;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.user-card:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(27,30,36,.08); }
+.uc-top { display: flex; align-items: center; gap: 14px; }
+.uc-photo {
+  width: 56px; height: 56px; border-radius: 12px; object-fit: cover; flex-shrink: 0;
+  background: var(--bg-elevated-2); border: 1px solid var(--border-soft);
+}
+.uc-photo-fallback {
+  width: 56px; height: 56px; border-radius: 12px; flex-shrink: 0;
+  background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 800; border: 1px solid var(--border-soft);
+}
+.uc-id { flex: 1; min-width: 0; }
+.uc-name { font-size: 14.5px; font-weight: 800; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uc-email { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.uc-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.uc-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+.uc-actions .act-btn { flex: 1; width: auto; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.uc-actions .act-btn.edit:hover { color: var(--accent); }
+.uc-actions .act-btn.del:hover  { color: var(--danger); }
+
+/* ── Photo upload field in the form ── */
+.photo-upload-row { display: flex; align-items: center; gap: 16px; grid-column: 1/3; }
+.photo-preview {
+  width: 68px; height: 68px; border-radius: 12px; object-fit: cover; flex-shrink: 0;
+  background: var(--bg-elevated-2); border: 1px solid var(--border);
+}
+.photo-preview-fallback {
+  width: 68px; height: 68px; border-radius: 12px; flex-shrink: 0;
+  background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 800; border: 1px solid var(--border);
+}
+.photo-upload-btn {
+  font-size: 12.5px; font-weight: 700; padding: 8px 16px; border-radius: 20px;
+  background: var(--bg-elevated-2); border: 1px solid var(--border); color: var(--text-primary); cursor: pointer;
+}
+.photo-upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* The global .modal has no max-height/scroll at all — fine for small
+   modals elsewhere, but this one now has enough fields (photo upload,
+   project-access sections) to grow taller than the viewport, which was
+   pushing "Save Changes" off-screen with no way to reach it. Scoped to
+   just this modal rather than changing the shared .modal rule, so
+   other, shorter modals in the app keep their current behavior. */
+#form-modal .modal { max-height: 88vh; overflow-y: auto; }
+
+/* ── Project-access sub-panels (one per selected module that has projects) ── */
+.pa-module-block { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 10px; }
+.pa-module-title { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+.pa-empty { font-size: 11.5px; color: var(--text-muted); }
+.pa-loading { font-size: 11.5px; color: var(--text-muted); }
+
+
+/* ── Toast ── */
+.toast {
+  position:fixed; bottom:24px; right:24px; z-index:9999;
+  background:var(--text-primary); color:var(--bg-base);
+  padding:11px 20px; border-radius:10px; font-size:13px; font-weight:600;
+  box-shadow:0 6px 20px rgba(0,0,0,.2); opacity:0; pointer-events:none;
+  transition:opacity .25s;
+}
+.toast.show { opacity:1; }
+.toast.error { background:var(--danger); color:#fff; }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="um-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="9" width="8" height="7" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="11" cy="12" r="0.9" fill="currentColor"/><circle cx="13" cy="12" r="0.9" fill="currentColor"/><path d="M11 14C11.5 14.6 12.5 14.6 13 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8 10L5.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M16 10L18.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8 15L5.5 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M16 15L18.5 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="5.2" cy="8.2" r="0.8" fill="currentColor"/><circle cx="18.8" cy="8.2" r="0.8" fill="currentColor"/><circle cx="5.2" cy="16.8" r="0.8" fill="currentColor"/><circle cx="18.8" cy="16.8" r="0.8" fill="currentColor"/><path d="M9 18H15" stroke="currentColor" stroke-width="1" opacity="0.3" stroke-linecap="round"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">Welcome, <span>{{ user_name.split()[0] }}</span></div>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="um-wrap">
+    <!-- Sidebar -->
+    <div class="admin-sidebar">
+      <div class="admin-sb-title">Navigation</div>
+      <a class="admin-sb-item" href="{{ url_for('admin') }}">
+        <div class="admin-sb-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V13M10 19V9M16 19V5M22 19H2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div> Dashboard
+      </a>
+      <a class="admin-sb-item active" href="{{ url_for('users.users_page') }}">
+        <div class="admin-sb-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="8.5" r="2.2" stroke="currentColor" stroke-width="1.4"/><path d="M15.3 14.2c2.6.5 4.7 2.7 4.7 5.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div> User Management
+      </a>
+      <a class="admin-sb-item" href="{{ url_for('admin') }}?view=modules">
+        <div class="admin-sb-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/></svg></div> Module Management
+      </a>
+      <a class="admin-sb-item" href="{{ url_for('settings_bp.settings_page') }}">
+        <div class="admin-sb-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2V5M12 19V22M22 12H19M5 12H2M19.07 4.93L16.95 7.05M7.05 16.95L4.93 19.07M19.07 19.07L16.95 16.95M7.05 7.05L4.93 4.93" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div> Settings
+      </a>
+    </div>
+
+    <!-- Main -->
+    <div class="um-content">
+      <!-- Header -->
+      <div class="um-header">
+        <div class="um-header-left">
+          <h1>All Users</h1>
+          <p>Manage operator access, roles and module permissions.</p>
+        </div>
+        <button class="btn-primary" onclick="openAddModal()">+ Add User</button>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="um-toolbar">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="search-input" class="search-input" placeholder="Search name or email…" oninput="applyFilters()"/>
+        </div>
+        <select id="filter-role"   class="filter-select" onchange="applyFilters()">
+          <option value="">All Roles</option>
+          {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+        <select id="filter-module" class="filter-select" onchange="applyFilters()">
+          <option value="">All Modules</option>
+          {% for m in modules %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+        </select>
+        <select id="filter-status" class="filter-select" onchange="applyFilters()">
+          <option value="">All Statuses</option>
+          {% for s in statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+        <span class="toolbar-count" id="result-count"></span>
+      </div>
+
+      <!-- User cards -->
+      <div class="user-grid" id="user-grid">
+        <div style="grid-column:1/-1;"><div class="empty-state"><p>Loading…</p></div></div>
+      </div>
+      <div class="pagination" id="pagination" style="margin:0 36px 36px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add / Edit Modal (also serves as the "profile" view — opens pre-filled when a card is clicked) ── -->
+<div class="modal-backdrop" id="form-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="form-modal-title">Add User</div>
+      <button class="modal-close" onclick="closeModal('form-modal')">×</button>
+    </div>
+    <div class="modal-grid">
+      <div class="photo-upload-row">
+        <img class="photo-preview" id="f-photo-preview" style="display:none;" alt=""/>
+        <div class="photo-preview-fallback" id="f-photo-fallback">?</div>
+        <div>
+          <label class="photo-upload-btn">
+            Change Photo
+            <input type="file" id="f-photo-input" accept=".jpg,.jpeg,.png,.webp" style="display:none;" onchange="onPhotoSelected(this)"/>
+          </label>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">JPG, PNG, or WEBP</div>
+        </div>
+      </div>
+      <div class="field" style="grid-column:1/3;">
+        <label>Username</label>
+        <input id="f-username" class="field input" placeholder="Full name" style="background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13.5px;color:var(--text-primary);outline:none;width:100%;font-family:var(--font);"/>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input id="f-email" type="email" placeholder="user@example.com" style="background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13.5px;color:var(--text-primary);outline:none;width:100%;font-family:var(--font);"/>
+      </div>
+      <div class="field">
+        <label>Contact</label>
+        <input id="f-contact" placeholder="+91 98765 00000" style="background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13.5px;color:var(--text-primary);outline:none;width:100%;font-family:var(--font);"/>
+      </div>
+      <div class="field" style="grid-column:1/3;">
+        <label>Roles</label>
+        <div id="f-roles" class="cb-group">
+          {% for r in roles %}
+          <label class="cb-option">
+            <input type="checkbox" class="f-role-cb" value="{{ r }}">
+            <span>{{ r }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">A user with both roles can switch between Admin and Client mode at login.</div>
+      </div>
+      <div class="field" style="grid-column:1/3;">
+        <label>Modules</label>
+        <div id="f-modules" class="cb-group">
+          {% for m in modules %}
+          <label class="cb-option">
+            <input type="checkbox" class="f-module-cb" value="{{ m }}">
+            <span>{{ m }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field" style="grid-column:1/3;" id="f-project-access-wrap">
+        <label>Project Access</label>
+        <div id="f-project-access"></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Select a module above to restrict this user to specific projects within it. Leave everything unchecked for a module to give full access to every project in it.</div>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="f-status" class="modal-select">
+          {% for s in statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field" id="f-meta-field" style="display:none;">
+        <label>Account Info</label>
+        <div style="font-size:12px;color:var(--text-muted);padding-top:8px;line-height:1.7;" id="f-meta-text"></div>
+      </div>
+    </div>
+    <div style="font-size:11.5px;color:var(--text-muted);margin-top:14px;" id="f-password-hint">A system-generated password will be emailed to the user on creation.</div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="f-delete-btn" style="margin-right:auto;color:var(--danger);border-color:var(--danger);display:none;">Delete User</button>
+      <button class="btn-ghost" onclick="closeModal('form-modal')">Cancel</button>
+      <button class="btn-primary" id="form-submit-btn" onclick="submitForm()">Save User</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Modal ── -->
+<div class="modal-backdrop" id="confirm-modal">
+  <div class="modal" style="max-width:400px;text-align:center;">
+    <div style="font-size:40px;margin-bottom:12px;">🗑️</div>
+    <div class="modal-title" style="margin-bottom:8px;">Delete User?</div>
+    <div id="confirm-msg" style="font-size:13px;color:var(--text-muted);margin-bottom:24px;"></div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button class="btn-ghost" onclick="closeModal('confirm-modal')">Cancel</button>
+      <button class="btn-primary" id="confirm-delete-btn" style="background:var(--danger);border-color:var(--danger);">Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allUsers   = [];
+let editingId  = null;
+const PAGE_SIZE = 10;
+let currentPage = 1;
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+loadUsers();
+
+// ── Project-wise access (per-module project checkboxes) ─────────────────────
+// Modules assigned here are still the primary gate — a user needs the
+// module itself checked above to see it at all. This narrows that down
+// further: leaving a module's project list untouched (nothing checked)
+// means full access to every project in it, same as before this existed.
+// Checking specific ones restricts them to just those.
+const projectsByModuleCache = {};
+
+document.querySelectorAll('.f-module-cb').forEach(cb => {
+  cb.addEventListener('change', () => renderProjectAccessSections());
+});
+
+async function fetchProjectsForModule(moduleName) {
+  if (projectsByModuleCache[moduleName]) return projectsByModuleCache[moduleName];
+  try {
+    const res = await fetch(`/api/users/projects-for-module?module=${encodeURIComponent(moduleName)}`);
+    const data = await res.json();
+    projectsByModuleCache[moduleName] = data.projects || [];
+  } catch (e) {
+    projectsByModuleCache[moduleName] = [];
+  }
+  return projectsByModuleCache[moduleName];
+}
+
+async function renderProjectAccessSections(preselected) {
+  const container = document.getElementById('f-project-access');
+  const checkedModules = Array.from(document.querySelectorAll('.f-module-cb:checked')).map(cb => cb.value);
+  // Project and ChimneyProject are two entirely separate tables with their
+  // own independent ID sequences — an ID appearing in one list doesn't
+  // mean anything for the other, so these are kept and checked separately
+  // rather than as one combined list (which risked pre-checking the wrong
+  // project if a Project row and a ChimneyProject row happened to share
+  // the same numeric ID).
+  const projectIds = (preselected && preselected.projectIds) || [];
+  const chimneyProjectIds = (preselected && preselected.chimneyProjectIds) || [];
+
+  if (!checkedModules.length) {
+    container.innerHTML = '<div class="pa-empty">Select a module above first.</div>';
+    return;
+  }
+  container.innerHTML = checkedModules.map(m => `<div class="pa-module-block" data-module="${esc(m)}"><div class="pa-module-title">${esc(m)}</div><div class="pa-loading">Loading projects…</div></div>`).join('');
+
+  for (const moduleName of checkedModules) {
+    const projects = await fetchProjectsForModule(moduleName);
+    const block = container.querySelector(`.pa-module-block[data-module="${CSS.escape(moduleName)}"]`);
+    if (!block) continue; // module got unchecked again while this was loading
+
+    if (!projects.length) {
+      block.innerHTML = `<div class="pa-module-title">${esc(moduleName)}</div><div class="pa-empty">No projects in this module yet.</div>`;
+      continue;
+    }
+    const idsForThisModule = (moduleName === '3D Inspection' ? chimneyProjectIds : projectIds).map(String);
+    block.innerHTML = `
+      <div class="pa-module-title">${esc(moduleName)}</div>
+      <div class="cb-group">
+        ${projects.map(p => `
+          <label class="cb-option">
+            <input type="checkbox" class="f-project-cb" data-module="${esc(moduleName)}" value="${p.id}" ${idsForThisModule.includes(String(p.id)) ? 'checked' : ''}>
+            <span>${esc(p.name)}</span>
+          </label>`).join('')}
+      </div>`;
+  }
+}
+
+function collectProjectRestrictions() {
+  // 3D Inspection uses a completely separate table/model (ChimneyProject)
+  // from every other module (which shares the generic Project model) — so
+  // its checked boxes go to a different field on submit.
+  const projectIds = [];
+  const chimneyProjectIds = [];
+  document.querySelectorAll('.f-project-cb:checked').forEach(cb => {
+    if (cb.dataset.module === '3D Inspection') chimneyProjectIds.push(cb.value);
+    else projectIds.push(cb.value);
+  });
+  return { projectIds, chimneyProjectIds };
+}
+
+async function loadUsers() {
+  const params = buildParams();
+  const res  = await fetch('/api/users?' + params);
+  const data = await res.json();
+  allUsers = data.users || [];
+  currentPage = 1;
+  renderGrid();
+}
+
+function buildParams() {
+  const search = document.getElementById('search-input').value;
+  const role   = document.getElementById('filter-role').value;
+  const module = document.getElementById('filter-module').value;
+  const status = document.getElementById('filter-status').value;
+  return new URLSearchParams({ search, role, module, status }).toString();
+}
+
+function applyFilters() { loadUsers(); }
+
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+
+function photoOrFallback(u, size) {
+  return u.photo_url
+    ? `<img class="uc-photo" src="${esc(u.photo_url)}" alt=""/>`
+    : `<div class="uc-photo-fallback">${esc(initials(u.username))}</div>`;
+}
+
+// ── Card grid render ─────────────────────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById('user-grid');
+  document.getElementById('result-count').textContent =
+    `${allUsers.length} user${allUsers.length !== 1 ? 's' : ''}`;
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page  = allUsers.slice(start, start + PAGE_SIZE);
+
+  if (!page.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="9" cy="8" r="4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><line x1="17" y1="10" x2="23" y2="10"/></svg>
+        <p>No users found.</p>
+      </div></div>`;
+    renderPagination();
+    return;
+  }
+
+  grid.innerHTML = page.map(u => `
+    <div class="user-card" onclick="openEditModal('${u.id}')">
+      <div class="uc-top">
+        ${photoOrFallback(u)}
+        <div class="uc-id">
+          <div class="uc-name">${esc(u.username)}</div>
+          <div class="uc-email">${esc(u.email)}</div>
+        </div>
+      </div>
+      <div class="uc-chips">
+        ${roleChips(u.roles)}
+        ${statusChip(u.status)}
+      </div>
+      <div class="uc-actions" onclick="event.stopPropagation()">
+        <button class="act-btn edit" title="Edit" onclick="openEditModal('${u.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+          Edit
+        </button>
+        <button class="act-btn del" title="Delete" onclick="openDeleteConfirm('${u.id}','${esc(u.username)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Delete
+        </button>
+      </div>
+    </div>`).join('');
+
+  renderPagination();
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+function renderPagination() {
+  const total = Math.ceil(allUsers.length / PAGE_SIZE);
+  const el    = document.getElementById('pagination');
+  if (total <= 1) { el.innerHTML = ''; return; }
+
+  let html = `<button class="pg-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹ Prev</button>`;
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || Math.abs(i - currentPage) <= 1) {
+      html += `<button class="pg-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
+    } else if (Math.abs(i - currentPage) === 2) {
+      html += `<span style="color:var(--text-muted);font-size:13px;">…</span>`;
+    }
+  }
+  html += `<button class="pg-btn" onclick="goPage(${currentPage+1})" ${currentPage===total?'disabled':''}>Next ›</button>`;
+  el.innerHTML = html;
+}
+function goPage(p) { currentPage = p; renderGrid(); }
+
+let selectedPhotoFile = null;
+
+function setPhotoPreview(url, name) {
+  const img = document.getElementById('f-photo-preview');
+  const fallback = document.getElementById('f-photo-fallback');
+  if (url) {
+    img.src = url;
+    img.style.display = 'block';
+    fallback.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    fallback.style.display = 'flex';
+    fallback.textContent = initials(name);
+  }
+}
+
+function onPhotoSelected(inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  selectedPhotoFile = file;
+  const reader = new FileReader();
+  reader.onload = e => setPhotoPreview(e.target.result, '');
+  reader.readAsDataURL(file);
+}
+
+// ── Add / Edit form (doubles as the "profile" view — opens pre-filled and
+//    editable when a card is clicked, rather than a separate read-only
+//    detail screen) ──────────────────────────────────────────────────────
+function openAddModal() {
+  editingId = null;
+  document.getElementById('form-modal-title').textContent = 'Add User';
+  document.getElementById('form-submit-btn').textContent  = 'Save User';
+  document.getElementById('f-delete-btn').style.display = 'none';
+  document.getElementById('f-meta-field').style.display = 'none';
+  document.getElementById('f-password-hint').style.display = 'block';
+  clearForm();
+  setPhotoPreview(null, '');
+  openModal('form-modal');
+}
+
+async function openEditModal(id) {
+  const res  = await fetch(`/api/users/${id}`);
+  const user = await res.json();
+  editingId = id;
+  selectedPhotoFile = null;
+  document.getElementById('form-modal-title').textContent = user.username;
+  document.getElementById('form-submit-btn').textContent  = 'Save Changes';
+  document.getElementById('f-username').value = user.username;
+  document.getElementById('f-email').value    = user.email;
+  document.getElementById('f-contact').value  = user.contact || '';
+  document.querySelectorAll('.f-role-cb').forEach(cb => {
+    cb.checked = (user.roles || []).includes(cb.value);
+  });
+  document.querySelectorAll('.f-module-cb').forEach(cb => {
+    cb.checked = (user.modules || []).includes(cb.value);
+  });
+  document.getElementById('f-status').value = user.status;
+  setPhotoPreview(user.photo_url || null, user.username);
+  await renderProjectAccessSections({
+    projectIds: user.allowed_project_ids || [],
+    chimneyProjectIds: user.allowed_chimney_project_ids || [],
+  });
+
+  // Full profile details live right in this same form now — account
+  // metadata that isn't itself editable shown underneath the editable
+  // fields, plus Delete right here too, so this one form really is "all
+  // the options" for a user in one place.
+  document.getElementById('f-meta-field').style.display = 'block';
+  document.getElementById('f-meta-text').innerHTML =
+    `Last login: ${esc(user.last_login)}<br/>Account created: ${esc(user.created_at)}`;
+  document.getElementById('f-password-hint').style.display = 'none';
+
+  const delBtn = document.getElementById('f-delete-btn');
+  delBtn.style.display = 'inline-block';
+  delBtn.onclick = () => { closeModal('form-modal'); openDeleteConfirm(id, user.username); };
+
+  openModal('form-modal');
+}
+
+async function submitForm() {
+  const checkedRoles   = Array.from(document.querySelectorAll('.f-role-cb:checked')).map(cb => cb.value);
+  const checkedModules = Array.from(document.querySelectorAll('.f-module-cb:checked')).map(cb => cb.value);
+
+  if (!checkedRoles.length) {
+    showToast('Please select at least one role.', true);
+    return;
+  }
+  if (!checkedModules.length) {
+    showToast('Please select at least one module.', true);
+    return;
+  }
+
+  const { projectIds, chimneyProjectIds } = collectProjectRestrictions();
+
+  const fd = new FormData();
+  fd.append('username', document.getElementById('f-username').value);
+  fd.append('email',    document.getElementById('f-email').value);
+  fd.append('contact',  document.getElementById('f-contact').value);
+  fd.append('status',   document.getElementById('f-status').value);
+  checkedRoles.forEach(r => fd.append('roles', r));
+  checkedModules.forEach(m => fd.append('modules', m));
+  projectIds.forEach(id => fd.append('project_ids', id));
+  chimneyProjectIds.forEach(id => fd.append('chimney_project_ids', id));
+  if (selectedPhotoFile) fd.append('photo', selectedPhotoFile);
+
+  const url    = editingId ? `/api/users/${editingId}` : '/api/users';
+  const method = editingId ? 'PUT' : 'POST';
+  const res    = await fetch(url, { method, body: fd });
+  const data   = await res.json();
+
+  if (!res.ok) { showToast(data.error || 'Error saving user.', true); return; }
+
+  closeModal('form-modal');
+  if (!editingId && data._generated_password) {
+    if (data._email_sent) {
+      showToast(`User created. Welcome email sent to ${data.email}.`);
+    } else {
+      showToast(`User created. Email not sent — temp password: ${data._generated_password}`, true);
+    }
+  } else {
+    showToast(editingId ? 'User updated.' : 'User created.');
+  }
+  loadUsers();
+}
+
+function clearForm() {
+  ['f-username','f-email','f-contact'].forEach(id => document.getElementById(id).value = '');
+  document.querySelectorAll('.f-role-cb').forEach(cb => cb.checked = false);
+  document.querySelectorAll('.f-module-cb').forEach(cb => cb.checked = false);
+  document.getElementById('f-status').selectedIndex = 0;
+  document.getElementById('f-photo-input').value = '';
+  selectedPhotoFile = null;
+  document.getElementById('f-project-access').innerHTML = '<div class="pa-empty">Select a module above first.</div>';
+}
+
+// ── Delete ──────────────────────────────────────────────────────────────────
+function openDeleteConfirm(id, name) {
+  document.getElementById('confirm-msg').textContent = `"${name}" will be permanently removed.`;
+  document.getElementById('confirm-delete-btn').onclick = async () => {
+    const res = await fetch(`/api/users/${id}`, { method:'DELETE' });
+    closeModal('confirm-modal');
+    if (res.ok) { showToast('User deleted.'); loadUsers(); }
+    else        { showToast('Failed to delete user.', true); }
+  };
+  openModal('confirm-modal');
+}
+
+// ── Modal helpers ───────────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-backdrop').forEach(m =>
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+function showToast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2800);
+}
+
+// ── Chips ───────────────────────────────────────────────────────────────────
+function roleChip(r) {
+  const cls = r === 'Admin' ? 'chip-admin' : 'chip-client';
+  return `<span class="chip ${cls}">${esc(r)}</span>`;
+}
+function roleChips(roles) {
+  if (!roles || !roles.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  return roles.map(roleChip).join(' ');
+}
+function moduleChip(m) {
+  const map = { 'Transmission Line':'chip-tline', 'Land Survey':'chip-survey', '3D Inspection':'chip-chimney' };
+  return `<span class="chip ${map[m]||''}">${esc(m)}</span>`;
+}
+function moduleChips(modules) {
+  if (!modules || !modules.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  return modules.map(moduleChip).join(' ');
+}
+function statusChip(s) {
+  const map = { 'Active':'chip-active', 'Inactive':'chip-inactive', 'Pending':'chip-pending' };
+  return `<span class="chip ${map[s]||''}">${esc(s)}</span>`;
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

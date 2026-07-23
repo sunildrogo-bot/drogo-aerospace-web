@@ -1,0 +1,598 @@
+{% extends "base.html" %}
+{% block title %}{{ project.asset_name }} — Project Overview{% endblock %}
+
+{% block head %}
+<style>
+  .cdv-page{min-height:100vh;display:flex;flex-direction:column;background:var(--bg-base);}
+  .cdv-content{flex:1;padding:28px 44px 50px;width:100%;}
+
+  /* Header — replaces the old plain title/subtitle line */
+  .cdv-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:26px;padding-bottom:22px;border-bottom:1px solid var(--border-soft);flex-wrap:wrap;}
+  .cdv-header-left{display:flex;align-items:center;gap:16px;}
+  .cdv-header-icon{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-light,var(--accent)));display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(0,0,0,.12);}
+  .cdv-header-icon svg{width:24px;height:24px;color:#fff;}
+  .cdv-title{font-size:23px;font-weight:800;color:var(--text-primary);letter-spacing:-.01em;line-height:1.2;}
+  .cdv-header-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .cdv-chip{font-size:11px;font-weight:600;color:var(--text-secondary);background:var(--bg-elevated);border:1px solid var(--border);padding:4px 11px;border-radius:20px;}
+
+  /* ═══════════════════════════════════════════════════
+     HERO — status pie, severity bar graph, and project
+     overview, in three equal boxes with a thin border line.
+  ═══════════════════════════════════════════════════ */
+  .cdv-hero{display:flex;gap:20px;padding:2px 0 36px;margin-bottom:4px;align-items:stretch;}
+  .cdv-pie-block, .cdv-bar-block{flex:1;min-width:0;}
+  .cdv-overview-col{flex:0 0 260px;margin-left:auto;overflow-y:auto;}
+  .cdv-hero-box{border:1px solid var(--border-soft);border-radius:var(--radius-lg);padding:20px 22px;display:flex;flex-direction:column;}
+  .cdv-hero-heading{font-size:14px;font-weight:800;color:var(--text-primary);margin-bottom:2px;}
+  .cdv-hero-sub{font-size:11.5px;color:var(--text-muted);margin-bottom:18px;}
+
+  /* Pie column — heading on top, chart naturally sized below, centered */
+  .cdv-pie-row{display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;}
+  .cdv-pie{position:relative;flex-shrink:0;width:200px;height:200px;border-radius:50%;cursor:default;}
+  .cdv-pie-hole{position:absolute;inset:26%;background:var(--bg-base);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .cdv-pie-hole-value{font-size:30px;font-weight:800;color:var(--text-primary);line-height:1;}
+  .cdv-pie-hole-label{font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-top:4px;}
+  .cdv-pie-legend{display:flex;flex-direction:column;gap:4px;}
+  .cdv-legend-row{display:flex;align-items:center;gap:11px;padding:8px 14px 8px 10px;border-radius:10px;cursor:pointer;border-left:3px solid transparent;transition:background .15s;}
+  .cdv-legend-row:hover{background:rgba(63,66,73,.06);}
+  .cdv-legend-row.active{background:rgba(63,66,73,.08);border-left-color:currentColor;}
+  .cdv-legend-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+  .cdv-legend-count{font-size:18px;font-weight:800;color:var(--text-primary);line-height:1;min-width:24px;}
+  .cdv-legend-label{font-size:12px;color:var(--text-secondary);font-weight:600;}
+  .cdv-legend-pct{font-size:11px;color:var(--text-muted);margin-left:auto;padding-left:16px;}
+  .cdv-progress-track{width:100%;height:5px;border-radius:3px;background:rgba(201,75,66,.18);overflow:hidden;margin-top:12px;}
+  .cdv-progress-fill{height:100%;background:var(--success);border-radius:3px;transition:width .3s ease;}
+
+  /* Bar column — natural bar width, centered, never stretched full-width */
+  .cdv-bar-chart{display:flex;align-items:flex-end;justify-content:center;gap:28px;height:230px;flex:1;}
+  .cdv-bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer;width:64px;}
+  .cdv-bar-track{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;}
+  .cdv-bar-fill{width:52px;border-radius:8px 8px 3px 3px;min-height:6px;transition:opacity .15s,width .15s;opacity:.6;}
+  .cdv-bar-col:hover .cdv-bar-fill{opacity:.85;}
+  .cdv-bar-col.active .cdv-bar-fill{opacity:1;width:58px;}
+  .cdv-bar-count{font-size:19px;font-weight:800;color:var(--text-primary);margin-top:11px;}
+  .cdv-bar-label{font-size:11.5px;color:var(--text-muted);font-weight:600;margin-top:2px;}
+  .cdv-bar-col.active .cdv-bar-label{color:var(--accent);}
+  .cdv-filter-note{font-size:11.5px;color:var(--accent);margin-top:14px;cursor:pointer;display:none;text-align:center;}
+  .cdv-filter-note.show{display:block;}
+  .cdv-type-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;justify-content:center;}
+  .cdv-type-chip{font-size:11px;color:var(--text-secondary);background:var(--bg-elevated-2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;}
+  .cdv-type-chip b{color:var(--text-primary);}
+
+  /* Overview column — third equal box, sections divided by hairlines */
+  .cdv-overview-section{padding:14px 0;border-bottom:1px solid var(--border-soft);}
+  .cdv-overview-section:first-child{padding-top:0;}
+  .cdv-overview-section:last-child{border-bottom:none;padding-bottom:0;}
+
+  .cdv-stat-value{font-size:20px;font-weight:800;color:var(--text-primary);}
+  .cdv-stat-label{font-size:11.5px;color:var(--text-muted);margin-top:3px;}
+  .cdv-pill{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;margin-top:8px;}
+  .cdv-pill.complete{background:rgba(31,157,104,.1);color:var(--success);}
+  .cdv-pill.progress{background:rgba(185,130,31,.1);color:var(--warning);}
+
+  .cdv-pilots-list, .cdv-access-list{font-size:12px;color:var(--text-secondary);line-height:1.8;}
+  .cdv-edit-link{font-size:11px;color:var(--accent);cursor:pointer;font-weight:600;margin-top:7px;display:inline-block;}
+  .cdv-empty-mini{font-size:12px;color:var(--text-muted);}
+
+  /* Tabs */
+  .cdv-tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border-soft);}
+  .cdv-tab{padding:10px 16px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;}
+  .cdv-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .cdv-view{display:none;}
+  .cdv-view.active{display:block;}
+
+  /* Excel-like defect table — full info per row, Close Defect lives here */
+  .cdv-table-wrap{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);overflow-x:auto;box-shadow:0 1px 3px rgba(27,30,36,.05);}
+  .cdv-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .cdv-table th{text-align:left;vertical-align:bottom;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);font-weight:800;padding:12px 16px;border-bottom:2px solid var(--accent);background:var(--bg-elevated-2);position:sticky;top:0;}
+  .cdv-table td{padding:11px 16px;border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;}
+  .cdv-td-img{overflow:visible;text-overflow:clip;white-space:normal;line-height:0;text-align:center;}
+  .cdv-td-loc{width:12%;}
+  .cdv-td-latlong{width:11%;text-align:center;}
+  .cdv-td-date{width:8%;text-align:center;}
+  .cdv-table tbody tr:last-child td{border-bottom:none;}
+  .cdv-table tbody tr:hover{background:rgba(63,66,73,.04);}
+  .cdv-row-highlight{animation:cdv-flash 1.8s ease-out 2;}
+  @keyframes cdv-flash{0%,100%{background:transparent;}30%{background:rgba(91,142,245,.28);}}
+  .cdv-table tbody tr.cdv-filtered-out{display:none;}
+  .cdv-td-title{font-weight:700;color:var(--text-primary);white-space:normal;}
+  .cdv-td-narrow{width:7.5%;text-align:center;}
+  .cdv-td-defid{font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;text-align:center;}
+  .cdv-th-defid{width:52px;text-align:center;}
+  .cdv-th-title{width:15%;}
+  .cdv-th-img{width:60px;text-align:center;}
+  .cdv-th-action{width:130px;text-align:right;padding-right:22px;}
+
+  /* Pagination — client-side, applies only within a single table's own
+     rows (on top of whatever severity filter is active); doesn't touch
+     any other card/chart on the page. */
+  .cdv-page-hidden{display:none !important;}
+  .cdv-pager{display:flex;align-items:center;justify-content:center;gap:6px;padding:14px 16px;border-top:1px solid var(--border-soft);background:var(--bg-elevated-2);}
+  .cdv-pager-btn{
+    min-width:30px;height:30px;padding:0 8px;border-radius:7px;border:1px solid var(--border);
+    background:var(--bg-elevated);color:var(--text-secondary);font-size:12px;font-weight:700;
+    cursor:pointer;transition:background .12s, color .12s;
+  }
+  .cdv-pager-btn:hover:not(:disabled){background:var(--bg-elevated-2);}
+  .cdv-pager-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .cdv-pager-btn:disabled{opacity:.4;cursor:not-allowed;}
+  .cdv-pager-info{font-size:11.5px;color:var(--text-muted);margin:0 8px;white-space:nowrap;}
+  .cdv-td-action{text-align:right;padding-right:22px !important;}
+  .cdv-td-thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;vertical-align:middle;cursor:pointer;transition:transform .15s;}
+  .cdv-td-thumb:hover{transform:scale(1.6);position:relative;z-index:5;box-shadow:0 4px 14px rgba(0,0,0,.25);}
+  .cdv-sev-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;}
+  .sev-Minor{background:rgba(31,157,104,.1);color:var(--success);}
+  .sev-Moderate{background:rgba(185,130,31,.1);color:var(--warning);}
+  .sev-Critical{background:rgba(201,75,66,.1);color:var(--danger);}
+  .cdv-empty{padding:50px 0;text-align:center;color:var(--text-muted);font-size:13px;}
+
+  /* Close-defect modal */
+  .cdm-body{max-width:460px;}
+  .cdm-drop{border:1.5px dashed var(--border-strong);border-radius:var(--radius-md);padding:22px;text-align:center;cursor:pointer;margin-bottom:14px;background:var(--bg-elevated-2);}
+  .cdm-drop:hover{border-color:var(--accent);}
+  .cdm-drop img{max-width:100%;max-height:160px;border-radius:8px;display:none;}
+  .cdm-drop-label{font-size:12.5px;color:var(--text-muted);}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="cdv-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="9" width="8" height="7" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="11" cy="12" r="0.9" fill="currentColor"/><circle cx="13" cy="12" r="0.9" fill="currentColor"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">Welcome, <span>{{ user_name.split()[0] }}</span></div>
+      <a href="{{ url_for('chimney_bp.chimney_viewer', chimney_id=project.id) }}" class="btn-ghost">← Back to 3D Viewer</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="cdv-content">
+    <div class="cdv-header">
+      <div class="cdv-header-left">
+        <div class="cdv-header-icon">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M7 22V11L9 4H13L15 11V22" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><line x1="6" y1="15" x2="16" y2="15" stroke="currentColor" stroke-width="1.3"/><path d="M9 4L7.5 1H14.5L13 4" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <div class="cdv-title">{{ project.asset_name }}</div>
+          <div class="cdv-header-chips">
+            <span class="cdv-chip">{{ project.inspection_type or 'Inspection type not set' }}</span>
+            <span class="cdv-chip">{{ project.structure_type or 'Structure type not set' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero — status pie, severity bar graph, project overview — one row, unboxed -->
+    {% if summary.total > 0 %}
+    <div class="cdv-hero">
+      <div class="cdv-hero-box cdv-pie-block">
+        <div class="cdv-hero-heading">Defect Status</div>
+        <div class="cdv-hero-sub">Click to jump to that list</div>
+        <div class="cdv-pie-row">
+          <div class="cdv-pie" id="cdv-pie" style="background:{{ status_pie_gradient }};">
+            <div class="cdv-pie-hole">
+              <div class="cdv-pie-hole-value">{{ summary.open_pct }}%</div>
+              <div class="cdv-pie-hole-label">Open</div>
+            </div>
+          </div>
+          <div class="cdv-pie-legend">
+            <div class="cdv-legend-row" style="color:var(--danger);" onclick="cdvNav('view-open', document.getElementById('cdv-tab-open'))">
+              <span class="cdv-legend-dot" style="background:var(--danger);"></span>
+              <span class="cdv-legend-count">{{ summary.open }}</span>
+              <span class="cdv-legend-label">Open</span>
+              <span class="cdv-legend-pct">{{ summary.open_pct }}%</span>
+            </div>
+            <div class="cdv-legend-row" style="color:var(--success);" onclick="cdvNav('view-closed', document.getElementById('cdv-tab-closed'))">
+              <span class="cdv-legend-dot" style="background:var(--success);"></span>
+              <span class="cdv-legend-count">{{ summary.closed }}</span>
+              <span class="cdv-legend-label">Closed</span>
+              <span class="cdv-legend-pct">{{ summary.closed_pct }}%</span>
+            </div>
+          </div>
+        </div>
+        <div class="cdv-progress-track"><div class="cdv-progress-fill" style="width:{{ summary.closed_pct }}%;"></div></div>
+      </div>
+
+      <div class="cdv-hero-box cdv-bar-block">
+        <div class="cdv-hero-heading">By Severity</div>
+        <div class="cdv-hero-sub">A different cut of the same findings — click a bar to filter</div>
+        <div class="cdv-bar-chart" id="cdv-bar-chart">
+          {% for bar in severity_bars %}
+          <div class="cdv-bar-col" data-sev="{{ bar.label }}" onclick="filterBySeverity('{{ bar.label }}')">
+            <div class="cdv-bar-track"><div class="cdv-bar-fill" style="height:{{ bar.pct }}%;background:{{ bar.color }};"></div></div>
+            <div class="cdv-bar-count">{{ bar.count }}</div>
+            <div class="cdv-bar-label">{{ bar.label }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="cdv-filter-note" id="cdv-filter-note" onclick="filterBySeverity('Total')">Showing <span id="cdv-filter-note-sev"></span> only — click to reset</div>
+        {% if top_defect_types %}
+        <div class="cdv-type-chips">
+          {% for label, count in top_defect_types %}
+          <span class="cdv-type-chip">{{ label }} <b>{{ count }}</b></span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Project overview — vertical, unboxed -->
+      <div class="cdv-hero-box cdv-overview-col">
+        <div class="cdv-overview-section">
+          <div class="cdv-hero-heading" style="font-size:12.5px;">Project Timeline</div>
+          {% if summary.days is not none %}
+          <div class="cdv-stat-value">{{ summary.days }} day{{ 's' if summary.days != 1 }}</div>
+          <div class="cdv-stat-label">{{ 'to close every finding' if summary.is_complete else 'elapsed so far' }}</div>
+          <span class="cdv-pill {{ 'complete' if summary.is_complete else 'progress' }}">{{ 'Completed' if summary.is_complete else 'In Progress' }}</span>
+          {% else %}
+          <div class="cdv-empty-mini">Not enough data yet.</div>
+          {% endif %}
+          {% if summary.target_date %}
+          <div class="cdv-stat-label" style="margin-top:8px;">
+            Target: {{ summary.target_date.strftime('%d %b %Y') }}
+            {% if summary.days_to_target is not none %}
+              {% if summary.days_to_target < 0 %} · <span style="color:var(--danger);">{{ -summary.days_to_target }} overdue</span>
+              {% else %} · {{ summary.days_to_target }}d left
+              {% endif %}
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if avg_days_to_close is not none %}
+          <div class="cdv-stat-label" style="margin-top:8px;">Avg. {{ avg_days_to_close }} day{{ 's' if avg_days_to_close != 1 }} to close a finding</div>
+          {% endif %}
+          {% if project.structure_height_m %}
+          <div class="cdv-stat-label" style="margin-top:8px;">Height: <b style="color:var(--text-primary);">{{ '%.1f'|format(project.structure_height_m) }} m</b> <span style="color:var(--text-muted);">(auto-measured from 3D model)</span></div>
+          {% endif %}
+        </div>
+
+        <div class="cdv-overview-section">
+          <div class="cdv-hero-heading" style="font-size:12.5px;">Pilots</div>
+          {% if project.pilots_list() %}
+          <div class="cdv-pilots-list">{{ project.pilots_list() | join(', ') }}</div>
+          {% else %}
+          <div class="cdv-empty-mini">No pilots recorded yet.</div>
+          {% endif %}
+          {% if is_admin %}
+          <span class="cdv-edit-link" onclick="editPilots()">✎ Edit pilots</span>
+          {% endif %}
+        </div>
+
+        <div class="cdv-overview-section">
+          <div class="cdv-hero-heading" style="font-size:12.5px;">Who's Accessing This</div>
+          {% if access_log %}
+          <div class="cdv-access-list">
+            {% for a in access_log %}
+            <div>{{ a.user_name }} <span style="color:var(--text-muted);">({{ a.role or '—' }})</span> — {{ a.visit_count }}× · {{ a.last_accessed_at.strftime('%d %b') if a.last_accessed_at else '—' }}</div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="cdv-empty-mini">No visits recorded yet.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="cdv-tabs">
+      <div class="cdv-tab active" id="cdv-tab-open" onclick="cdvNav('view-open', this)">Open Defects ({{ summary.open }})</div>
+      <div class="cdv-tab" id="cdv-tab-closed" onclick="cdvNav('view-closed', this)">Closed Defects ({{ summary.closed }})</div>
+    </div>
+
+    <!-- Open defects -->
+    <div id="view-open" class="cdv-view active">
+      {% if open_defects %}
+      <div class="cdv-table-wrap">
+        <table class="cdv-table" id="cdv-table-open">
+          <thead>
+            <tr>
+              <th class="cdv-th-defid">Defect ID</th><th class="cdv-th-title">Title</th><th class="cdv-th-img">Defect Image</th><th class="cdv-td-narrow">Severity</th><th class="cdv-td-narrow">Type</th><th class="cdv-td-narrow">Area</th><th class="cdv-td-narrow">Height from Ground</th><th class="cdv-td-loc">Location</th><th class="cdv-td-latlong">Lat, Long</th><th class="cdv-td-date">Raised</th>
+              <th class="cdv-th-action">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in open_defects %}
+            <tr data-severity="{{ d.severity or 'Minor' }}" data-defect-id="{{ d.id }}">
+              <td class="cdv-td-defid">D{{ seq_by_id[d.id] }}</td>
+              <td class="cdv-td-title">{{ d.title }}</td>
+              <td class="cdv-td-img">{% if d.image_path %}<img class="cdv-td-thumb" src="/static/{{ d.image_path }}" alt="" onclick="openImagePopup('/static/{{ d.image_path }}')"/>{% else %}—{% endif %}</td>
+              <td class="cdv-td-narrow"><span class="cdv-sev-tag sev-{{ d.severity or 'Minor' }}">{{ d.severity or 'Minor' }}</span></td>
+              <td class="cdv-td-narrow">{{ d.defect_type or '—' }}</td>
+              <td class="cdv-td-narrow">{{ d.area or '—' }}</td>
+              <td class="cdv-td-narrow">{{ d.height_label or '—' }}</td>
+              <td class="cdv-td-loc">{{ d.location or '—' }}</td>
+              <td class="cdv-td-latlong">{{ '%.5f'|format(d.pos_lat) }}, {{ '%.5f'|format(d.pos_lon) }}</td>
+              <td class="cdv-td-date">{{ d.created_at.strftime('%d %b %Y') if d.created_at else '—' }}</td>
+              <td class="cdv-td-action"><button class="btn-primary" style="padding:6px 14px;font-size:12px;" onclick="openCloseDefectModal({{ d.id }}, '{{ d.title|e }}')">Close Defect</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="cdv-pager" id="cdv-pager-open"></div>
+      </div>
+      {% else %}
+      <div class="cdv-empty">No open defects{{ ' 🎉' if summary.total > 0 else '' }}.</div>
+      {% endif %}
+    </div>
+
+    <!-- Closed defects -->
+    <div id="view-closed" class="cdv-view">
+      {% if closed_defects %}
+      <div class="cdv-table-wrap">
+        <table class="cdv-table" id="cdv-table-closed">
+          <thead>
+            <tr>
+              <th class="cdv-th-defid">Defect ID</th><th class="cdv-th-title">Title</th><th class="cdv-th-img">Defect Image</th><th class="cdv-td-narrow">Severity</th><th class="cdv-td-narrow">Type</th><th class="cdv-td-narrow">Area</th><th class="cdv-td-narrow">Height from Ground</th><th class="cdv-td-loc">Location</th><th class="cdv-td-latlong">Lat, Long</th><th class="cdv-td-date">Closed</th><th class="cdv-td-date">Closed By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in closed_defects %}
+            <tr data-severity="{{ d.severity or 'Minor' }}" data-defect-id="{{ d.id }}">
+              <td class="cdv-td-defid">D{{ seq_by_id[d.id] }}</td>
+              <td class="cdv-td-title">{{ d.title }}</td>
+              <td class="cdv-td-img">{% if d.rectified_image_path %}<img class="cdv-td-thumb" src="/static/{{ d.rectified_image_path }}" alt="" onclick="openImagePopup('/static/{{ d.rectified_image_path }}')"/>{% else %}—{% endif %}</td>
+              <td class="cdv-td-narrow"><span class="cdv-sev-tag sev-{{ d.severity or 'Minor' }}">{{ d.severity or 'Minor' }}</span></td>
+              <td class="cdv-td-narrow">{{ d.defect_type or '—' }}</td>
+              <td class="cdv-td-narrow">{{ d.area or '—' }}</td>
+              <td class="cdv-td-narrow">{{ d.height_label or '—' }}</td>
+              <td class="cdv-td-loc">{{ d.location or '—' }}</td>
+              <td class="cdv-td-latlong">{{ '%.5f'|format(d.pos_lat) }}, {{ '%.5f'|format(d.pos_lon) }}</td>
+              <td class="cdv-td-date">{{ d.closed_at.strftime('%d %b %Y') if d.closed_at else '—' }}</td>
+              <td class="cdv-td-date">{{ d.closed_by or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="cdv-pager" id="cdv-pager-closed"></div>
+      </div>
+      {% else %}
+      <div class="cdv-empty">No closed defects yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Close-defect modal -->
+<div class="modal-backdrop" id="close-defect-modal">
+  <div class="modal cdm-body">
+    <div class="modal-header">
+      <div class="modal-title" id="cdm-title">Close Defect</div>
+      <button class="modal-close" onclick="closeCloseDefectModal()">&times;</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:14px;">
+      Upload a photo showing the rectification at this finding's location before it's marked Closed.
+    </div>
+    <div class="cdm-drop" id="cdm-drop" onclick="document.getElementById('cdm-file').click()">
+      <img id="cdm-preview"/>
+      <div class="cdm-drop-label" id="cdm-drop-label">Click to choose a photo</div>
+    </div>
+    <input type="file" id="cdm-file" accept="image/*" style="display:none;" onchange="_cdmPreview()"/>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <input type="text" id="cdm-notes" placeholder="What was done to fix it"/>
+    </div>
+    <div class="error-msg" id="cdm-error" style="display:none;margin-top:12px;"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeCloseDefectModal()">Cancel</button>
+      <button type="button" class="btn-primary" id="cdm-submit-btn" onclick="submitCloseDefect()">Mark Closed</button>
+    </div>
+  </div>
+</div>
+
+<!-- Defect image popup -->
+<div class="modal-backdrop" id="image-popup-backdrop" onclick="closeImagePopup()">
+  <img id="image-popup-img" src="" alt="" style="max-width:88vw;max-height:88vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.4);" onclick="event.stopPropagation()"/>
+</div>
+
+<script>
+  const CDV_PROJECT_ID = {{ project.id }};
+
+  function openImagePopup(url) {
+    document.getElementById('image-popup-img').src = url;
+    document.getElementById('image-popup-backdrop').classList.add('open');
+  }
+  function closeImagePopup() {
+    document.getElementById('image-popup-backdrop').classList.remove('open');
+  }
+
+  function cdvNav(viewId, el) {
+    document.querySelectorAll('.cdv-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.cdv-view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+  }
+
+  // Clicking a severity bar filters BOTH the Open and Closed lists at
+  // once to that severity. "Total" (or clicking the active bar again)
+  // resets back to showing everything.
+  let _cdvActiveSeverity = null;
+
+  // Pagination — 7 rows per page, client-side, scoped to each table
+  // independently so it never touches the charts/cards elsewhere on the
+  // page. Re-paginates on top of whatever severity filter is active, so
+  // "page 2" always means "the 2nd page of the currently-filtered rows".
+  const CDV_PAGE_SIZE = 7;
+  const _cdvPage = { open: 1, closed: 1 };
+
+  function cdvVisibleRows(tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) return [];
+    return Array.from(table.querySelectorAll('tbody tr')).filter(r => !r.classList.contains('cdv-filtered-out'));
+  }
+
+  function paginateTable(tableId, pagerId, key, page) {
+    const rows = cdvVisibleRows(tableId);
+    const totalPages = Math.max(1, Math.ceil(rows.length / CDV_PAGE_SIZE));
+    page = Math.min(Math.max(1, page), totalPages);
+    _cdvPage[key] = page;
+
+    rows.forEach((row, i) => {
+      const onThisPage = i >= (page - 1) * CDV_PAGE_SIZE && i < page * CDV_PAGE_SIZE;
+      row.classList.toggle('cdv-page-hidden', !onThisPage);
+    });
+
+    const pager = document.getElementById(pagerId);
+    if (!pager) return;
+    if (rows.length <= CDV_PAGE_SIZE) { pager.innerHTML = ''; return; }
+
+    let html = `<button class="cdv-pager-btn" ${page === 1 ? 'disabled' : ''} onclick="paginateTable('${tableId}','${pagerId}','${key}',${page - 1})">‹</button>`;
+    for (let p = 1; p <= totalPages; p++) {
+      html += `<button class="cdv-pager-btn${p === page ? ' active' : ''}" onclick="paginateTable('${tableId}','${pagerId}','${key}',${p})">${p}</button>`;
+    }
+    html += `<button class="cdv-pager-btn" ${page === totalPages ? 'disabled' : ''} onclick="paginateTable('${tableId}','${pagerId}','${key}',${page + 1})">›</button>`;
+    html += `<span class="cdv-pager-info">${rows.length} defect${rows.length === 1 ? '' : 's'}</span>`;
+    pager.innerHTML = html;
+  }
+
+  function paginateAllTables() {
+    paginateTable('cdv-table-open', 'cdv-pager-open', 'open', 1);
+    paginateTable('cdv-table-closed', 'cdv-pager-closed', 'closed', 1);
+  }
+
+  function filterBySeverity(sev) {
+    if (sev === 'Total' || sev === _cdvActiveSeverity) sev = null;
+    _cdvActiveSeverity = sev;
+
+    document.querySelectorAll('.cdv-bar-col').forEach(col => {
+      col.classList.toggle('active', sev ? col.dataset.sev === sev : col.dataset.sev === 'Total');
+    });
+    document.querySelectorAll('.cdv-legend-row').forEach(row => {
+      row.classList.toggle('active', sev ? row.dataset.sev === sev : false);
+    });
+
+    document.querySelectorAll('.cdv-table tbody tr').forEach(row => {
+      const show = !sev || row.dataset.severity === sev;
+      row.classList.toggle('cdv-filtered-out', !show);
+    });
+    // Changing the filter changes which rows exist per table — always
+    // jump back to page 1 of the new filtered set rather than leaving
+    // pagination on a page that might now be empty or mid-list.
+    paginateAllTables();
+
+    const note = document.getElementById('cdv-filter-note');
+    if (note) {
+      note.classList.toggle('show', !!sev);
+      const sevLabel = document.getElementById('cdv-filter-note-sev');
+      if (sevLabel) sevLabel.textContent = sev || '';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', paginateAllTables);
+
+  {% if is_admin %}
+  async function editPilots() {
+    const current = {{ project.pilots_list() | join(', ') | tojson }};
+    const next = prompt('Pilots on this project (comma-separated):', current);
+    if (next === null) return;
+    try {
+      const res = await fetch(`/api/chimney-projects/${CDV_PROJECT_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pilots: next.trim() }),
+      });
+      if (!res.ok) { alert('Could not save pilots.'); return; }
+      window.location.reload();
+    } catch (e) { alert('Network error — please try again.'); }
+  }
+  {% endif %}
+
+  let _cdmDefectId = null;
+
+  function openCloseDefectModal(defectId, title) {
+    _cdmDefectId = defectId;
+    document.getElementById('cdm-title').textContent = `Close Defect — ${title}`;
+    document.getElementById('cdm-file').value = '';
+    document.getElementById('cdm-notes').value = '';
+    document.getElementById('cdm-error').style.display = 'none';
+    document.getElementById('cdm-preview').style.display = 'none';
+    document.getElementById('cdm-drop-label').style.display = 'block';
+    document.getElementById('close-defect-modal').classList.add('open');
+  }
+
+  function closeCloseDefectModal() {
+    document.getElementById('close-defect-modal').classList.remove('open');
+    _cdmDefectId = null;
+  }
+
+  function _cdmPreview() {
+    const file = document.getElementById('cdm-file').files[0];
+    const img = document.getElementById('cdm-preview');
+    const label = document.getElementById('cdm-drop-label');
+    if (!file) { img.style.display = 'none'; label.style.display = 'block'; return; }
+    img.src = URL.createObjectURL(file);
+    img.style.display = 'inline-block';
+    label.style.display = 'none';
+  }
+
+  async function submitCloseDefect() {
+    const fileInput = document.getElementById('cdm-file');
+    const errBox = document.getElementById('cdm-error');
+    const btn = document.getElementById('cdm-submit-btn');
+    errBox.style.display = 'none';
+
+    if (!fileInput.files[0]) {
+      errBox.textContent = 'A rectification photo is required to close this finding.';
+      errBox.style.display = 'block';
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('photo', fileInput.files[0]);
+    fd.append('notes', document.getElementById('cdm-notes').value.trim());
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res = await fetch(`/api/chimney-defects/${_cdmDefectId}/close`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        errBox.textContent = data.error || 'Could not close this finding.';
+        errBox.style.display = 'block';
+        return;
+      }
+      window.location.reload();
+    } catch (e) {
+      errBox.textContent = 'Network error — please try again.';
+      errBox.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Mark Closed';
+    }
+  }
+
+  // Arriving from the observation list's info button (?highlight=<id>) —
+  // jump to whichever tab that finding is actually in, scroll it into
+  // view, and flash it briefly so it's obvious which row is being shown.
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const highlightId = params.get('highlight');
+    if (!highlightId) return;
+    const row = document.querySelector(`tr[data-defect-id="${highlightId}"]`);
+    if (!row) return;
+
+    const view = row.closest('.cdv-view');
+    if (view && view.id === 'view-closed') {
+      cdvNav('view-closed', document.getElementById('cdv-tab-closed'));
+    }
+
+    // If pagination put this row on a later page, jump there first —
+    // otherwise it's sitting hidden (display:none) and scrollIntoView
+    // would silently do nothing.
+    const table = row.closest('table');
+    if (table) {
+      const isClosed = table.id === 'cdv-table-closed';
+      const rows = cdvVisibleRows(table.id);
+      const idx = rows.indexOf(row);
+      if (idx !== -1) {
+        const page = Math.floor(idx / CDV_PAGE_SIZE) + 1;
+        paginateTable(table.id, isClosed ? 'cdv-pager-closed' : 'cdv-pager-open', isClosed ? 'closed' : 'open', page);
+      }
+    }
+
+    setTimeout(() => {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('cdv-row-highlight');
+      setTimeout(() => row.classList.remove('cdv-row-highlight'), 3700);
+    }, 150);
+  })();
+</script>
+{% endblock %}

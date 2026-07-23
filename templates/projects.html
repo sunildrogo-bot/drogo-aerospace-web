@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Projects — DROGO AEROSPACE{% endblock %}
+
+{% block head %}
+<style>
+  .projects-page{min-height:100vh;display:flex;flex-direction:column;background:var(--bg-base);}
+  .cover-banner{
+    position:relative;width:100%;height:70px;flex-shrink:0;display:flex;flex-direction:row;align-items:center;justify-content:space-between;padding:18px 28px;
+    background:
+      linear-gradient(180deg,rgba(244, 245, 247, 0.803) 0%,rgba(98, 98, 100, 0.92) 100%), center 40%/cover no-repeat;
+  }
+  .banner-text{display:flex;flex-direction:column;justify-content:center;}
+  .banner-title{font-size:11px;letter-spacing:.28em;color:var(--accent-sky);text-transform:uppercase;margin-bottom:4px;font-weight:600;}
+  .banner-heading{font-size:22px;font-weight:800;color:#fff;}
+  .banner-heading span{color:#fff;}
+  .banner-sub{font-size:12.5px;color:rgba(255,255,255,.75);margin-top:4px;}
+  .btn-add-project{
+    background:rgba(12, 0, 0, 0.12);border:1px solid rgba(8, 0, 0, 0.35);color:#fff;
+    padding:8px 16px;border-radius:var(--radius-md, 6px);font-size:13px;font-weight:600;
+    cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s;
+  }
+  .btn-add-project:hover{background:rgba(255,255,255,.2);border-color:rgba(6, 0, 0, 0.55);}
+  .projects-area{padding:28px;background:var(--bg-base);flex:1;}
+  .section-label{font-size:11px;letter-spacing:.28em;color:var(--text-muted);text-transform:uppercase;margin-bottom:16px;font-weight:600;}
+  .projects-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .project-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;cursor:pointer;transition:border-color .15s,transform .15s;text-decoration:none;display:block;box-shadow:0 1px 3px rgba(27,30,36,.05);}
+  .project-card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .card-banner{position:relative;height:120px;background-size:cover;background-position:center;}
+  .card-banner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,11,22,.1) 0%,rgba(6,11,22,.85) 100%);}
+  .card-tag{position:absolute;top:12px;left:12px;z-index:5;background:rgba(6,11,22,.78);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:4px 10px;font-size:11px;color:#fff;letter-spacing:.08em;font-weight:700;}
+  .card-body{padding:16px 18px;}
+  .card-content-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;}
+  .card-text-col{flex:1;min-width:0;}
+  .card-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+  .card-logo{width:75px;height:75px;flex-shrink:0;object-fit:contain;border-radius:6px;background:#fff;padding:4px;border:1px solid var(--border);}
+  .card-desc{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:12px;}
+  .card-meta{display:flex;gap:8px;flex-wrap:wrap;}
+  .meta-chip{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--text-secondary);background:var(--bg-elevated-2);}
+  .meta-chip.active{border-color:rgba(31,157,104,.4);color:#1f9d68;background:rgba(31,157,104,.08);}
+  .card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-soft);}
+  .card-action{font-size:12px;color:var(--accent);font-weight:600;}
+  .card-lines-badge{font-size:11px;color:var(--text-muted);}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="projects-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="12" y1="6" x2="4" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="6" x2="20" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="10" x2="6" y2="14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="10" x2="18" y2="14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="4" y1="11" x2="20" y2="11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="6" y1="14" x2="18" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="12" y1="22" x2="8" y2="22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="12" y1="22" x2="16" y2="22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="4" cy="11" r="0.7" fill="currentColor"/><circle cx="20" cy="11" r="0.7" fill="currentColor"/><circle cx="6" cy="14" r="0.7" fill="currentColor"/><circle cx="18" cy="14" r="0.7" fill="currentColor"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">Welcome, <span>{{ user_name.split()[0] }}</span></div>
+      <a href="{{ url_for('admin') }}" class="btn-ghost">← Dashboard</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+  <div class="cover-banner">
+    <div class="banner-text">
+      <div class="banner-heading"><span>{{ module }} Projects</span></div>
+      <div class="banner-sub">Select a project to view details and manage transmission data</div>
+    </div>
+    <button class="btn-add-project" onclick="openAddProjectModal()">+ Add Project</button>
+  </div>
+  <div class="projects-area">
+    <div class="section-label">
+      <span>Active Projects</span>
+    </div>
+    <div class="projects-grid" id="projects-grid">
+      <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--text-muted);font-size:13px;">Loading projects…</div>
+    </div>
+  </div>
+</div>
+{% if module == 'TRANS' %}
+{% include "_add_trans_project_modal.html" %}
+{% else %}
+{% include "_add_project_modal.html" %}
+{% endif %}
+<script>window.CURRENT_MODULE = {{ module|tojson }};</script>
+{% endblock %}

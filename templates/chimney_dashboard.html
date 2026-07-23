@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}3D Inspection — DROGO AEROSPACE{% endblock %}
+
+{% block head %}
+<style>
+  .projects-page{min-height:100vh;display:flex;flex-direction:column;background:var(--bg-base);}
+  .cover-banner{
+    position:relative;width:100%;height:70px;flex-shrink:0;display:flex;flex-direction:row;align-items:center;justify-content:space-between;padding:18px 28px;
+    background:
+      linear-gradient(180deg,rgba(244, 245, 247, 0.803) 0%,rgba(98, 98, 100, 0.92) 100%), center 40%/cover no-repeat;
+  }
+  .banner-text{display:flex;flex-direction:column;justify-content:center;}
+  .banner-title{font-size:11px;letter-spacing:.28em;color:var(--accent-sky);text-transform:uppercase;margin-bottom:4px;font-weight:600;}
+  .banner-heading{font-size:22px;font-weight:800;color:#fff;}
+  .banner-heading span{color:#fff;}
+  .banner-sub{font-size:12.5px;color:rgba(255,255,255,.75);margin-top:4px;}
+  .btn-add-project{
+    background:rgba(12, 0, 0, 0.12);border:1px solid rgba(8, 0, 0, 0.35);color:#fff;
+    padding:8px 16px;border-radius:var(--radius-md, 6px);font-size:13px;font-weight:600;
+    cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s;
+  }
+  .btn-add-project:hover{background:rgba(255,255,255,.2);border-color:rgba(6, 0, 0, 0.55);}
+  .projects-area{padding:28px;background:var(--bg-base);flex:1;}
+  .section-label{font-size:11px;letter-spacing:.28em;color:var(--text-muted);text-transform:uppercase;margin-bottom:16px;font-weight:600;}
+  .projects-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .project-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;cursor:pointer;transition:border-color .15s,transform .15s;display:block;box-shadow:0 1px 3px rgba(27,30,36,.05);}
+  .project-card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .card-banner{position:relative;height:120px;background-size:cover;background-position:center;background-color:#3a3d44;pointer-events:none;}
+  .card-banner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,11,22,.1) 0%,rgba(6,11,22,.85) 100%);pointer-events:none;}
+  .card-tag{position:absolute;top:12px;left:12px;z-index:5;background:rgba(6,11,22,.78);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:4px 10px;font-size:11px;color:#fff;letter-spacing:.08em;font-weight:700;}
+  .card-model-tag{position:absolute;top:12px;right:12px;z-index:5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;}
+  .card-model-tag.ready{background:rgba(31,157,104,.85);color:#fff;}
+  .card-model-tag.pending{background:rgba(185,130,31,.85);color:#fff;}
+  .card-body{padding:16px 18px;}
+  .card-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+  .card-desc{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:12px;}
+  .card-meta{display:flex;gap:8px;flex-wrap:wrap;}
+  .meta-chip{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--text-secondary);background:var(--bg-elevated-2);}
+  .meta-chip.active{border-color:rgba(31,157,104,.4);color:#1f9d68;background:rgba(31,157,104,.08);}
+  .card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-soft);}
+  .card-action{font-size:12px;color:var(--accent);font-weight:600;}
+  .card-defect-badge{font-size:11px;color:var(--text-muted);}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="projects-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 22V11L9 4H13L15 11V22" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><line x1="6" y1="15" x2="16" y2="15" stroke="currentColor" stroke-width="1.2"/><path d="M9 4L7.5 1H14.5L13 4" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">Welcome, <span>{{ user_name.split()[0] if user_name else '' }}</span></div>
+      <a href="{{ url_for('client_dashboard') }}" class="btn-ghost">← Dashboard</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+  <div class="cover-banner">
+    <div class="banner-text">
+      <div class="banner-heading"><span>3D Inspection Projects</span></div>
+      <div class="banner-sub">Add an asset, then open it for the 3D inspection view</div>
+    </div>
+    {% if is_admin %}
+    <button class="btn-add-project" onclick="openAddChimneyModal()">+ Add Project</button>
+    {% endif %}
+  </div>
+  <div class="projects-area">
+    <div class="section-label">
+      <span>Active Projects</span>
+    </div>
+    <div class="projects-grid" id="chimney-grid">
+      <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--text-muted);font-size:13px;">Loading projects…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add 3D Inspection Project Modal ── -->
+<div class="modal-backdrop" id="add-chimney-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">+ Add 3D Inspection Project</div>
+      <button class="modal-close" onclick="closeModal('add-chimney-modal')">×</button>
+    </div>
+    <form id="add-chimney-form">
+      <div class="modal-grid">
+        <div class="field" style="grid-column:1/3;">
+          <label>Project Type</label>
+          <select id="ac-project-type">
+            <option value="chimney">Chimney</option>
+            <option value="water_tank">Water Tank</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column:1/3;">
+          <label>Asset</label>
+          <input id="ac-asset" required placeholder="e.g. Unit-2 Flue Stack"/>
+        </div>
+        <div class="field" id="ac-inspection-type-field">
+          <label>Type of Inspection</label>
+          <select id="ac-inspection-type">
+            <option value="Visual">Visual</option>
+            <option value="Thermal">Thermal</option>
+            <option value="Structural">Structural</option>
+            <option value="Combined">Combined</option>
+          </select>
+        </div>
+        <div class="field" id="ac-structure-type-field">
+          <label>Type of Structure</label>
+          <select id="ac-structure-type">
+            <option value="RCC Chimney">RCC Chimney</option>
+            <option value="Brick Chimney">Brick Chimney</option>
+            <option value="Steel Stack">Steel Stack</option>
+            <option value="FRP Stack">FRP Stack</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Latitude</label>
+          <input id="ac-lat" type="number" step="any" required placeholder="e.g. 23.2599"/>
+        </div>
+        <div class="field">
+          <label>Longitude</label>
+          <input id="ac-lng" type="number" step="any" required placeholder="e.g. 77.4126"/>
+        </div>
+        <div class="field" style="grid-column:1/3;">
+          <label>Inspection Scope</label>
+          <textarea id="ac-inspection-scope" rows="3"
+            placeholder="e.g. Full 360° visual survey of the shell, base and top rim via drone-based 3D scan."
+            style="background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13.5px;color:var(--text-primary);outline:none;width:100%;font-family:var(--font);resize:vertical;"></textarea>
+        </div>
+        <div class="field">
+          <label>Timeline (Target Completion)</label>
+          <input id="ac-timeline" type="date"/>
+        </div>
+        <div class="field">
+          <label>Pilots <span style="color:var(--text-muted);font-weight:500;text-transform:none;">(optional)</span></label>
+          <input id="ac-pilots" placeholder="e.g. Ravi Kumar, Ajay S."/>
+        </div>
+      </div>
+      <div class="error-msg" id="ac-error" style="display:none;margin-top:14px;"></div>
+    </form>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal('add-chimney-modal')">Cancel</button>
+      <button type="button" class="btn-primary" id="ac-submit-btn" onclick="submitAddChimney()">Save Chimney</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .modal .field input, .modal .field select{
+    background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:10px 14px;font-size:13.5px;color:var(--text-primary);outline:none;width:100%;font-family:var(--font);
+  }
+  .modal .field input:focus, .modal .field select:focus{border-color:var(--accent);}
+  .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;}
+  .modal-backdrop.open{display:flex;}
+  .modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-lg);width:100%;max-width:520px;padding:28px 32px;box-shadow:0 20px 60px rgba(0,0,0,.18);position:relative;}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;}
+  .modal-title{font-size:17px;font-weight:800;color:var(--text-primary);}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;line-height:1;font-size:20px;}
+  .modal-close:hover{color:var(--text-primary);}
+  .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:22px;}
+</style>
+
+<script src="{{ url_for('static', filename='js/chimney.js') }}"></script>
+{% endblock %}

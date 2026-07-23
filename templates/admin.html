@@ -1,0 +1,851 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — DROGO AEROSPACE{% endblock %}
+
+{% block head %}
+<style>
+  .admin-page{height:100vh;overflow:hidden;display:flex;flex-direction:column;background:var(--bg-base);}
+  .admin-wrap{display:flex;flex:1;min-height:0;background:var(--bg-base);}
+  .admin-sidebar{width:240px;flex-shrink:0;background:var(--bg-panel);border-right:1px solid var(--border-soft);padding:22px 0;display:flex;flex-direction:column;}
+  .admin-sb-title{font-size:10px;letter-spacing:.25em;color:var(--text-muted);text-transform:uppercase;padding:0 22px 16px;font-weight:700;}
+  .admin-sb-item{display:flex;align-items:center;gap:11px;padding:11px 22px;font-size:13.5px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:background .15s,color .15s;border-left:3px solid transparent;margin:2px 0;text-decoration:none;}
+  .admin-sb-item:hover{background:rgba(63,66,73,.06);color:var(--text-primary);}
+  .admin-sb-item.active{background:rgba(63,66,73,.08);color:var(--accent);border-left-color:var(--accent);font-weight:700;}
+  .admin-sb-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--bg-elevated-2);flex-shrink:0;color:var(--text-secondary);}
+  .admin-sb-icon svg{width:16px;height:16px;}
+  .admin-sb-item.active .admin-sb-icon{background:rgba(63,66,73,.12);color:var(--accent);}
+  .admin-content{flex:1;min-width:0;overflow-y:auto;background:var(--bg-base);padding:34px 40px;}
+  .admin-view{display:none;}
+  .admin-view.active{display:block;}
+  .admin-view-title{font-size:22px;font-weight:800;color:var(--text-primary);letter-spacing:.01em;}
+  .admin-view-sub{font-size:13px;color:var(--text-muted);margin-top:5px;margin-bottom:30px;}
+
+  /* Module cards */
+  .module-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+  .module-card{position:relative;overflow:hidden;height:240px;border-radius:var(--radius-lg);cursor:pointer;border:1px solid var(--border);transition:transform .18s,box-shadow .18s,border-color .18s;background-size:cover;background-position:center;}
+  .module-card:hover{transform:translateY(-4px);border-color:var(--accent-card,var(--accent));box-shadow:0 18px 36px -16px rgba(27,30,36,.28);}
+  .module-card-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,11,22,.18) 0%,rgba(6,11,22,.58) 55%,rgba(6,11,22,.95) 100%);}
+  .module-card-content{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding:22px 22px 20px;}
+  .module-badge-icon{position:absolute;top:16px;left:18px;z-index:2;width:38px;height:38px;border-radius:10px;background:rgba(6,11,22,.55);border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);}
+  .module-badge-icon svg{width:19px;height:19px;}
+  .module-name{font-size:17px;font-weight:700;color:#fff;margin-bottom:6px;}
+  .module-desc{font-size:12.5px;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:14px;}
+  .module-meta{display:flex;gap:8px;flex-wrap:wrap;}
+  .module-chip{font-size:11px;padding:4px 11px;border-radius:20px;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8);background:rgba(255,255,255,.06);font-weight:500;}
+  .module-chip.active{border-color:rgba(31,157,104,.5);color:#8fe3bc;background:rgba(31,157,104,.18);}
+  .module-chip.soon{border-color:rgba(255,255,255,.35);color:rgba(255,255,255,.85);background:rgba(255,255,255,.1);}
+
+  /* User management */
+  .um-toolbar{margin-bottom:20px;}
+  .add-user-form{display:none;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:22px;box-shadow:0 1px 3px rgba(27,30,36,.05);}
+  .add-user-form.show{display:block;}
+  .auf-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;}
+  .module-select{background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:9px;padding:11px 14px;font-size:13px;color:var(--text-primary);outline:none;width:100%;font-family:var(--font);}
+  .auf-actions{display:flex;justify-content:flex-end;gap:10px;}
+  .users-table-wrap{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:0 1px 3px rgba(27,30,36,.05);}
+  .users-table{width:100%;border-collapse:collapse;}
+  .users-table thead{background:var(--bg-elevated-2);}
+  .users-table th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:14px 18px;border-bottom:1px solid var(--border-soft);font-weight:700;}
+  .users-table td{padding:14px 18px;font-size:13.5px;color:var(--text-secondary);border-bottom:1px solid var(--border-soft);}
+  .users-table tr:last-child td{border-bottom:none;}
+  .users-table tr:hover td{background:var(--bg-elevated-2);}
+  .access-chip{font-size:11px;padding:4px 11px;border-radius:20px;border:1px solid;font-weight:500;}
+  .access-chip.tline{border-color:rgba(63,66,73,.3);color:var(--accent);background:rgba(63,66,73,.06);}
+  .access-chip.lsurvey{border-color:rgba(31,128,157,.3);color:#1f7e9c;background:rgba(31,128,157,.07);}
+  .access-chip.chimney{border-color:rgba(90,95,104,.3);color:#5a5f68;background:rgba(90,95,104,.07);}
+  .status-chip{font-size:11px;padding:4px 11px;border-radius:20px;border:1px solid;font-weight:500;}
+  .status-chip.active{border-color:rgba(31,157,104,.35);color:#1f9d68;background:rgba(31,157,104,.08);}
+  .status-chip.pending{border-color:rgba(185,130,31,.35);color:#b9821f;background:rgba(185,130,31,.08);}
+
+  /* Dashboard stats */
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px;}
+  .dash-two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+  .dash-two-col > div{min-width:0;}
+  .dash-panel{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;min-width:0;}
+  .dash-cal-notes-row{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .dash-panel-title{font-size:13px;font-weight:800;color:var(--text-primary);margin-bottom:12px;}
+
+  .dash-panel-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .dash-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success);margin-right:7px;animation:dash-pulse 1.6s ease-in-out infinite;}
+  @keyframes dash-pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .dash-load-badge{font-size:10.5px;font-weight:800;padding:4px 11px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;}
+  .dash-load-badge.low{background:rgba(31,157,104,.12);color:var(--success);}
+  .dash-load-badge.moderate{background:rgba(185,130,31,.12);color:var(--warning);}
+  .dash-load-badge.high{background:rgba(200,60,50,.12);color:var(--danger);}
+  .dash-live-stats-inline{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--text-muted);margin-bottom:12px;}
+  .dash-live-stats-inline b{color:var(--text-primary);font-weight:800;}
+  .dash-live-note{font-size:10.5px;color:var(--text-muted);margin-top:10px;}
+  .dash-live-time-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);font-weight:700;margin-bottom:2px;padding:0 2px;}
+  .dash-live-scroll{overflow-x:auto;overflow-y:hidden;max-width:100%;min-width:0;}
+  .dash-live-tooltip{
+    display:none;position:absolute;top:6px;background:var(--bg-panel);border:1px solid var(--border);
+    border-radius:var(--radius-md);padding:10px 13px;box-shadow:0 8px 24px rgba(0,0,0,.14);
+    min-width:170px;z-index:5;pointer-events:none;
+  }
+  .dash-live-tooltip.open{display:block;}
+  .dash-live-tooltip-time{font-size:11.5px;font-weight:800;color:var(--text-primary);margin-bottom:6px;}
+  .dash-live-tooltip-row{display:flex;justify-content:space-between;gap:14px;font-size:11px;color:var(--text-secondary);padding:2px 0;}
+  .dash-live-tooltip-row b{color:var(--text-primary);font-weight:700;}
+
+  .dash-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .dash-cal-dow{font-size:9.5px;font-weight:800;color:var(--text-muted);text-align:center;padding-bottom:4px;text-transform:uppercase;}
+  .dash-cal-day{font-size:11.5px;text-align:center;padding:6px 0;border-radius:6px;color:var(--text-secondary);}
+  .dash-cal-day.empty{visibility:hidden;}
+  .dash-cal-day.today{background:var(--accent);color:#fff;font-weight:800;}
+  .dash-notes-textarea{
+    width:100%;min-height:110px;border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:10px 12px;font-size:12.5px;font-family:inherit;color:var(--text-primary);background:var(--bg-elevated-2);
+    outline:none;resize:vertical;
+  }
+  .dash-notes-textarea:focus{border-color:var(--accent);}
+  .dash-notes-status{font-size:10.5px;color:var(--text-muted);}
+  .dash-empty{font-size:12.5px;color:var(--text-muted);padding:10px 0;}
+  .dash-attn-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border-soft);}
+  .dash-attn-row:last-child{border-bottom:none;}
+  .dash-attn-label{font-size:12px;color:var(--text-secondary);}
+  .dash-attn-value{font-size:13.5px;font-weight:800;}
+  .dash-attn-value.ok{color:var(--success);}
+  .dash-attn-value.warn{color:var(--warning);}
+  .dash-attn-value.bad{color:var(--danger);}
+  #dash-recent-activity{max-height:280px;overflow-y:auto;}
+  .dash-activity-row{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-bottom:1px solid var(--border-soft);}
+  .dash-activity-row:last-child{border-bottom:none;}
+  .dash-activity-main{font-size:12.5px;color:var(--text-primary);}
+  .dash-activity-main b{font-weight:700;}
+  .dash-activity-meta{font-size:11px;color:var(--text-muted);}
+
+  .dash-bar-chart{display:flex;align-items:flex-end;justify-content:center;gap:18px;height:160px;padding:0 4px;}
+  .dash-bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;width:56px;}
+  .dash-bar-track{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;}
+  .dash-bar-fill{width:38px;border-radius:6px 6px 2px 2px;min-height:4px;background:var(--accent);opacity:.65;}
+  .dash-bar-count{font-size:14px;font-weight:800;color:var(--text-primary);margin-top:8px;}
+  .dash-bar-label{font-size:10px;color:var(--text-muted);font-weight:600;margin-top:2px;text-align:center;}
+  .dash-bar-chart-compact{height:100px;gap:10px;}
+  .dash-bar-chart-compact .dash-bar-col{width:34px;}
+  .dash-bar-chart-compact .dash-bar-fill{width:20px;}
+  .dash-bar-chart-compact .dash-bar-count{font-size:11px;margin-top:5px;}
+  .dash-bar-chart-compact .dash-bar-label{font-size:9px;}
+
+  .tk-popup-row{border:1px solid var(--border-soft);border-radius:var(--radius-sm);padding:10px 12px;}
+  .tk-popup-subject{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:3px;}
+  .tk-popup-meta{font-size:11px;color:var(--text-muted);}
+  .stat-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:0 1px 3px rgba(27,30,36,.05);}
+  .stat-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-bottom:8px;}
+  .stat-value{font-size:26px;font-weight:800;color:var(--text-primary);}
+  .stat-sub{font-size:11.5px;color:var(--text-muted);margin-top:4px;}
+  .dash-section-title{font-size:13px;font-weight:700;color:var(--text-primary);margin:0 0 14px;letter-spacing:.02em;}
+  .activity-feed{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:0 1px 3px rgba(27,30,36,.05);margin-bottom:30px;}
+  .activity-row{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border-soft);font-size:13px;}
+  .activity-row:last-child{border-bottom:none;}
+  .activity-left{display:flex;align-items:center;gap:10px;color:var(--text-secondary);}
+  .activity-when{font-size:11.5px;color:var(--text-muted);}
+  .activity-chip{font-size:10px;padding:3px 9px;border-radius:20px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;}
+  .activity-chip.delete{background:rgba(201,75,66,.1);color:var(--danger);border:1px solid rgba(201,75,66,.3);}
+  .activity-chip.update{background:rgba(31,128,157,.1);color:#1f7e9c;border:1px solid rgba(31,128,157,.3);}
+  .activity-empty{padding:24px;text-align:center;color:var(--text-muted);font-size:13px;}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="admin-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="9" width="8" height="7" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="11" cy="12" r="0.9" fill="currentColor"/><circle cx="13" cy="12" r="0.9" fill="currentColor"/><path d="M11 14C11.5 14.6 12.5 14.6 13 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8 10L5.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M16 10L18.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8 15L5.5 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M16 15L18.5 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="5.2" cy="8.2" r="0.8" fill="currentColor"/><circle cx="18.8" cy="8.2" r="0.8" fill="currentColor"/><circle cx="5.2" cy="16.8" r="0.8" fill="currentColor"/><circle cx="18.8" cy="16.8" r="0.8" fill="currentColor"/><path d="M9 18H15" stroke="currentColor" stroke-width="1" opacity="0.3" stroke-linecap="round"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">Welcome, <span>{{ user_name.split()[0] }}</span></div>
+      {% if can_switch_client %}
+      <a href="{{ url_for('switch_to_client') }}" class="btn-logout" style="background:var(--bg-elevated-2);color:var(--text-primary);">Switch to Client</a>
+      {% endif %}
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+  <div class="admin-wrap">
+    <div class="admin-sidebar">
+      <div class="admin-sb-title">Navigation</div>
+      <a class="admin-sb-item active" onclick="adminNav('view-overview',this)" href="#">
+        <div class="admin-sb-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V13M10 19V9M16 19V5M22 19H2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div> Dashboard
+      </a>
+      <a class="admin-sb-item" href="{{ url_for('users.users_page') }}">
+        <div class="admin-sb-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="8.5" r="2.2" stroke="currentColor" stroke-width="1.4"/><path d="M15.3 14.2c2.6.5 4.7 2.7 4.7 5.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div> User Management
+      </a>
+      <a class="admin-sb-item" onclick="adminNav('view-dashboard',this)" href="#">
+        <div class="admin-sb-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/></svg></div> Module Management
+      </a>
+      <a class="admin-sb-item" href="{{ url_for('settings_bp.settings_page') }}">
+        <div class="admin-sb-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2V5M12 19V22M22 12H19M5 12H2M19.07 4.93L16.95 7.05M7.05 16.95L4.93 19.07M19.07 19.07L16.95 16.95M7.05 7.05L4.93 4.93" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div> Settings
+      </a>
+    </div>
+    <div class="admin-content">
+
+      <!-- Dashboard -->
+      <div id="view-overview" class="admin-view active">
+        <div class="admin-view-title">Dashboard</div>
+        <div class="admin-view-sub">Live statistics across all modules.</div>
+
+        <div class="stats-grid" id="dash-stats-grid">
+          <div class="stat-card"><div class="stat-label">Total Projects</div><div class="stat-value">—</div></div>
+          <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value">—</div></div>
+          <div class="stat-card"><div class="stat-label">Active Users</div><div class="stat-value">—</div></div>
+          <div class="stat-card"><div class="stat-label">Chimney 3D Models Ready</div><div class="stat-value">—</div></div>
+        </div>
+
+        <div class="dash-two-col">
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <div class="dash-panel">
+              <div class="dash-panel-title">Needs Attention</div>
+              <div id="dash-needs-attention"><div class="dash-empty">Loading…</div></div>
+            </div>
+
+            <div class="dash-cal-notes-row">
+              <div class="dash-panel">
+                <div class="dash-panel-title" id="dash-cal-title">Calendar</div>
+                <div id="dash-calendar"></div>
+              </div>
+              <div class="dash-panel">
+                <div class="dash-panel-title-row">
+                  <div class="dash-panel-title" style="margin-bottom:0;">Notes</div>
+                  <span class="dash-notes-status" id="dash-notes-status"></span>
+                </div>
+                <textarea id="dash-notes-textarea" class="dash-notes-textarea" placeholder="Jot anything down — saves automatically." oninput="onNotesInput()"></textarea>
+              </div>
+            </div>
+
+            <div class="dash-panel">
+              <div class="dash-panel-title">Projects by Module</div>
+              <div id="dash-module-chart"><div class="dash-empty">Loading…</div></div>
+            </div>
+
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <div class="dash-panel">
+              <div class="dash-panel-title">Recent Activity</div>
+              <div id="dash-recent-activity"><div class="dash-empty">Loading…</div></div>
+            </div>
+
+            <div class="dash-panel">
+              <div class="dash-panel-title-row">
+                <div class="dash-panel-title" style="margin-bottom:0;">
+                  <span class="dash-live-dot"></span>Live Portal Load
+                </div>
+                <span class="dash-load-badge" id="dash-load-badge">—</span>
+              </div>
+              <div class="dash-live-stats-inline">
+                <span><b id="dash-live-users">—</b> active users</span>
+                <span><b id="dash-live-rpm">—</b> req/min</span>
+                <span><b id="dash-live-avgms">—</b> avg</span>
+                <span><b id="dash-live-maxms">—</b> slowest</span>
+              </div>
+              <div id="dash-live-chart"></div>
+              <div class="dash-live-note">Updates every 1s · reflects this server process only — see note in load_monitor.py if running multiple worker processes.</div>
+            </div>
+
+            <div class="dash-panel">
+              <div class="dash-panel-title">Activity — Last 7 Days</div>
+              <div id="dash-activity-trend-chart"><div class="dash-empty">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Module Management -->
+      <div id="view-dashboard" class="admin-view">
+        <div class="admin-view-title">Module Management</div>
+        <div class="admin-view-sub">Overview of all available modules and operations.</div>
+
+        <div class="module-grid">
+
+          <!-- Transmission Lines -->
+          <div class="module-card" style="--accent-card:#b7caf1;background-image:url('https://images.pexels.com/photos/611219/watt-electricity-sky-power-611219.jpeg?auto=compress&cs=tinysrgb&w=900');"
+               onclick="window.location='{{ url_for('projects') }}'">
+            <div class="module-badge-icon">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6V12L12 16L20 12V6L12 2Z" stroke="#eceef1" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 16V22" stroke="#eceef1" stroke-width="1.6"/><circle cx="12" cy="9" r="1.6" fill="#eceef1"/></svg>
+            </div>
+            <div class="module-card-scrim"></div>
+            <div class="module-card-content">
+              <div class="module-name">Transmission Lines</div>
+              <div class="module-desc">Monitor high-voltage transmission corridors with real-time tower health data.</div>
+              <div class="module-meta">
+                <span class="module-chip active">Active</span>
+                <span class="module-chip" id="dash-count-tline">— projects</span>
+                <span class="module-chip">DVC</span>
+                <span class="module-chip">MPPTCL</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Land Survey -->
+          <div class="module-card" style="--accent-card:#bfdbe8;background-image:url('https://images.pexels.com/photos/3030296/pexels-photo-3030296.jpeg?auto=compress&cs=tinysrgb&w=900');"
+               onclick="window.location='{{ url_for('land_survey_dashboard') }}'">
+            <div class="module-badge-icon">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="#eceef1" stroke-width="1.6"/><line x1="4" y1="12" x2="20" y2="12" stroke="#eceef1" stroke-width="1.2"/><line x1="12" y1="4" x2="12" y2="20" stroke="#eceef1" stroke-width="1.2"/></svg>
+            </div>
+            <div class="module-card-scrim"></div>
+            <div class="module-card-content">
+              <div class="module-name">Land Survey</div>
+              <div class="module-desc">Aerial drone surveys for right-of-way mapping and encroachment detection.</div>
+              <div class="module-meta">
+                <span class="module-chip active">Active</span>
+                <span class="module-chip" id="dash-count-lsurvey">— projects</span>
+                <span class="module-chip">ROW</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3D Inspection -->
+          <div class="module-card" style="--accent-card:#c9cdd6;background-image:url('https://images.pexels.com/photos/247763/pexels-photo-247763.jpeg?auto=compress&cs=tinysrgb&w=900');"
+            onclick="window.location='{{ url_for('mpptcl') }}'">
+            <div class="module-badge-icon">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="2" width="6" height="20" rx="1.5" stroke="#eceef1" stroke-width="1.6"/><line x1="5" y1="20" x2="19" y2="20" stroke="#eceef1" stroke-width="1.8"/></svg>
+            </div>
+            <div class="module-card-scrim"></div>
+            <div class="module-card-content">
+              <div class="module-name">3D Inspection</div>
+              <div class="module-desc">Drone-based 3D scan inspection of industrial structures — chimneys, water tanks and more.</div>
+              <div class="module-meta">
+                <span class="module-chip active">Active</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- TRANS -->
+          <div class="module-card" style="--accent-card:#b7caf1;background-image:url('https://images.pexels.com/photos/611219/watt-electricity-sky-power-611219.jpeg?auto=compress&cs=tinysrgb&w=900');"
+            onclick="window.location='{{ url_for('trans_dashboard') }}'">
+            <div class="module-badge-icon">
+              <svg viewBox="0 0 24 24" fill="none"><line x1="12" y1="2" x2="12" y2="22" stroke="#eceef1" stroke-width="1.4" stroke-linecap="round"/><line x1="12" y1="6" x2="4" y2="11" stroke="#eceef1" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="6" x2="20" y2="11" stroke="#eceef1" stroke-width="1.3" stroke-linecap="round"/><line x1="4" y1="11" x2="20" y2="11" stroke="#eceef1" stroke-width="1.2" stroke-linecap="round"/></svg>
+            </div>
+            <div class="module-card-scrim"></div>
+            <div class="module-card-content">
+              <div class="module-name">TRANS</div>
+              <div class="module-desc">Transmission line project tracking — divisions, towers, and line mapping.</div>
+              <div class="module-meta">
+                <span class="module-chip active">Active</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- User Management -->
+      <div id="view-users" class="admin-view">
+        <div class="admin-view-title">User Management</div>
+        <div class="admin-view-sub">Manage operator access and module permissions.</div>
+        <div class="um-toolbar">
+          <button class="btn-primary" onclick="toggleAddUserForm()">+ Add User</button>
+        </div>
+        <div class="add-user-form" id="add-user-form">
+          <div class="auf-grid">
+            <div class="field"><label>Full Name</label><input type="text" placeholder="e.g. Ramesh Kumar"/></div>
+            <div class="field"><label>Phone Number</label><input type="tel" placeholder="+91 98765 43210"/></div>
+            <div class="field"><label>Email ID</label><input type="email" placeholder="ramesh@drogodrones.com"/></div>
+            <div class="field">
+              <label>Module Access</label>
+              <select class="module-select">
+                <option>Transmission Lines</option>
+                <option>Land Survey</option>
+                <option>Chimney Present</option>
+              </select>
+            </div>
+          </div>
+          <div class="auf-actions" style="justify-content:space-between;align-items:center;">
+            <div style="font-size:11.5px;color:var(--text-muted);">A system-generated password will be emailed to the client.</div>
+            <div style="display:flex;gap:10px;">
+              <button class="btn-ghost" onclick="toggleAddUserForm()">Cancel</button>
+              <button class="btn-primary" onclick="saveUser()">Save User</button>
+            </div>
+          </div>
+        </div>
+        <div class="users-table-wrap">
+          <table class="users-table">
+            <thead>
+              <tr><th>Name</th><th>Phone</th><th>Email</th><th>Module Access</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Sunil Kumar</td><td>+91 98765 43210</td><td>sunil@drogodrones.com</td><td><span class="access-chip tline">Transmission Lines</span></td><td><span class="status-chip active">Active</span></td></tr>
+              <tr><td>Ramesh Patel</td><td>+91 91234 56780</td><td>ramesh@drogodrones.com</td><td><span class="access-chip tline">Transmission Lines</span></td><td><span class="status-chip active">Active</span></td></tr>
+              <tr><td>Anjali Sharma</td><td>+91 99887 76655</td><td>anjali@drogodrones.com</td><td><span class="access-chip lsurvey">Land Survey</span></td><td><span class="status-chip pending">Pending</span></td></tr>
+              <tr><td>Vikram Singh</td><td>+91 90909 12121</td><td>vikram@drogodrones.com</td><td><span class="access-chip chimney">Chimney Present</span></td><td><span class="status-chip active">Active</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="tickets-popup-modal">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <div class="modal-title">New support tickets</div>
+      <button class="modal-close" onclick="dismissTicketsPopup()">×</button>
+    </div>
+    <div id="tickets-popup-list" style="display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;"></div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="dismissTicketsPopup()">Dismiss</button>
+      <button class="btn-primary" onclick="goToRaisedTickets()">View All Tickets</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function adminNav(viewId, el) {
+  document.querySelectorAll('.admin-sb-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.admin-view').forEach(v => v.classList.remove('active'));
+  document.getElementById(viewId).classList.add('active');
+}
+
+// Cross-page links (e.g. "Module Management" from the User Management or
+// Settings pages) land here with ?view=modules so the right tab opens
+// automatically instead of always falling back to the Dashboard tab.
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('view') === 'modules') {
+    const link = document.querySelector('.admin-sb-item[onclick*="view-dashboard"]');
+    if (link) adminNav('view-dashboard', link);
+  }
+})();
+function toggleAddUserForm() {
+  document.getElementById('add-user-form').classList.toggle('show');
+}
+function saveUser() {
+  alert('User saved successfully! (In a real app this would POST to /api/users)');
+  toggleAddUserForm();
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+async function loadDashboardSummary() {
+  const statsGrid = document.getElementById('dash-stats-grid');
+  try {
+    const res = await fetch('/api/dashboard/summary');
+    const data = await res.json();
+
+    const sev = data.severity_counts || { Critical: 0, Major: 0, Minor: 0 };
+    const openDefects = sev.Critical + sev.Major + sev.Minor;
+
+    const cards = [
+      { label: 'Total Projects', value: data.projects.total,
+        sub: `${data.projects.transmission_line} T-Line · ${data.projects.land_survey} Land Survey · ${data.projects.trans} TRANS · ${data.projects.chimney_inspection} Chimney` },
+      { label: 'Open Defects', value: openDefects,
+        sub: `${sev.Critical} Critical · ${sev.Major} Major · ${sev.Minor} Minor` },
+      { label: 'Total Users', value: data.users.total, sub: `${data.users.pending} pending approval` },
+      { label: 'Active Users', value: data.users.active, sub: 'Currently active accounts' },
+      { label: 'Chimney 3D Models Ready', value: data.chimney_models_ready,
+        sub: `of ${data.projects.chimney_inspection} chimney projects` },
+    ];
+    statsGrid.innerHTML = cards.map(c => `
+      <div class="stat-card">
+        <div class="stat-label">${escapeHtml(c.label)}</div>
+        <div class="stat-value">${c.value}</div>
+        <div class="stat-sub">${escapeHtml(c.sub)}</div>
+      </div>`).join('');
+
+    renderNeedsAttention(data.needs_attention || {});
+    renderRecentActivity(data.recent_activity || []);
+    renderModuleChart(data.projects);
+    renderActivityTrendChart(data.activity_trend || []);
+    document.getElementById('dash-count-tline').textContent = `${data.projects.transmission_line} project(s)`;
+    document.getElementById('dash-count-lsurvey').textContent = `${data.projects.land_survey} project(s)`;
+  } catch (e) {
+    statsGrid.innerHTML = `<div class="activity-empty">Could not load statistics.</div>`;
+  }
+}
+
+function renderNeedsAttention(attn) {
+  const box = document.getElementById('dash-needs-attention');
+  const critical = attn.open_critical_defects || 0;
+  const pending = attn.towers_pending_photos || 0;
+
+  if (!critical && !pending) {
+    box.innerHTML = '<div class="dash-empty">Nothing needs attention right now.</div>';
+    return;
+  }
+  box.innerHTML = `
+    <div class="dash-attn-row">
+      <span class="dash-attn-label">Open Critical defects</span>
+      <span class="dash-attn-value ${critical ? 'bad' : 'ok'}">${critical}</span>
+    </div>
+    <div class="dash-attn-row">
+      <span class="dash-attn-label">Towers still pending a photo</span>
+      <span class="dash-attn-value ${pending ? 'warn' : 'ok'}">${pending}</span>
+    </div>`;
+}
+
+function renderRecentActivity(rows) {
+  const box = document.getElementById('dash-recent-activity');
+  if (!rows.length) {
+    box.innerHTML = '<div class="dash-empty">No activity recorded yet.</div>';
+    return;
+  }
+  box.innerHTML = rows.map(r => {
+    const verb = {
+      login: 'logged in', logout: 'logged out', delete: 'deleted', create: 'created',
+      enter_module: 'opened', enter_project: 'opened', mark_defect: 'marked a defect on',
+      capture_photo: 'captured a photo on', assign_pilot: 'assigned a pilot to',
+    }[r.action] || r.action;
+    const target = r.entity_name ? ` <b>${escapeHtml(r.entity_name)}</b>` : '';
+    const when = r.created_at ? escapeHtml(r.created_at) : '';
+    return `
+      <div class="dash-activity-row">
+        <div class="dash-activity-main"><b>${escapeHtml(r.performed_by || 'Someone')}</b> ${verb}${target}</div>
+        <div class="dash-activity-meta">${when}${r.module ? ' · ' + escapeHtml(r.module) : ''}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderModuleChart(projects) {
+  const box = document.getElementById('dash-module-chart');
+  const bars = [
+    { label: 'T-Line', value: projects.transmission_line },
+    { label: 'Land Survey', value: projects.land_survey },
+    { label: 'TRANS', value: projects.trans },
+    { label: 'Chimney', value: projects.chimney_inspection },
+  ];
+  const max = Math.max(1, ...bars.map(b => b.value));
+  box.innerHTML = `
+    <div class="dash-bar-chart">
+      ${bars.map(b => `
+        <div class="dash-bar-col">
+          <div class="dash-bar-track"><div class="dash-bar-fill" style="height:${Math.round(b.value / max * 100)}%;"></div></div>
+          <div class="dash-bar-count">${b.value}</div>
+          <div class="dash-bar-label">${b.label}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderActivityTrendChart(days) {
+  const box = document.getElementById('dash-activity-trend-chart');
+  if (!days.length) {
+    box.innerHTML = '<div class="dash-empty">No activity recorded yet.</div>';
+    return;
+  }
+  const max = Math.max(1, ...days.map(d => d.count));
+  box.innerHTML = `
+    <div class="dash-bar-chart dash-bar-chart-compact">
+      ${days.map(d => `
+        <div class="dash-bar-col">
+          <div class="dash-bar-track"><div class="dash-bar-fill" style="height:${Math.round(d.count / max * 100)}%;"></div></div>
+          <div class="dash-bar-count">${d.count}</div>
+          <div class="dash-bar-label">${d.label}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadDashboardSummary();
+  checkForNewTickets();
+  loadLiveLoadHistory().then(() => {
+    pollLiveLoad();
+    setInterval(pollLiveLoad, 1000);
+  });
+  renderCalendar();
+  loadNotes();
+});
+
+// ── Calendar — a simple current-month reference grid, today highlighted.
+//    No events/scheduling tied to it, just a quick "what's the date"
+//    glance next to Needs Attention.
+function renderCalendar() {
+  const box = document.getElementById('dash-calendar');
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth(), todayDate = now.getDate();
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('dash-cal-title').textContent = `Calendar — ${monthNames[month]} ${year}`;
+
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const dow = ['S','M','T','W','T','F','S'];
+
+  let cells = dow.map(d => `<div class="dash-cal-dow">${d}</div>`).join('');
+  for (let i = 0; i < firstWeekday; i++) cells += `<div class="dash-cal-day empty">0</div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells += `<div class="dash-cal-day${d === todayDate ? ' today' : ''}">${d}</div>`;
+  }
+  box.innerHTML = `<div class="dash-cal-grid">${cells}</div>`;
+}
+
+// ── Notes — a personal scratch pad per admin, auto-saved (debounced so
+//    it's not firing a network request on every keystroke).
+let _notesSaveTimer = null;
+
+async function loadNotes() {
+  try {
+    const res = await fetch('/api/dashboard/notes');
+    const data = await res.json();
+    document.getElementById('dash-notes-textarea').value = data.notes || '';
+  } catch (e) {}
+}
+
+function onNotesInput() {
+  const status = document.getElementById('dash-notes-status');
+  status.textContent = 'Saving…';
+  clearTimeout(_notesSaveTimer);
+  _notesSaveTimer = setTimeout(saveNotes, 800);
+}
+
+async function saveNotes() {
+  const status = document.getElementById('dash-notes-status');
+  const notes = document.getElementById('dash-notes-textarea').value;
+  try {
+    const res = await fetch('/api/dashboard/notes', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    });
+    status.textContent = res.ok ? 'Saved' : 'Could not save';
+    if (res.ok) setTimeout(() => { if (status.textContent === 'Saved') status.textContent = ''; }, 2000);
+  } catch (e) {
+    status.textContent = 'Could not save';
+  }
+}
+
+// ── Live portal load ─────────────────────────────────────────────────────
+// Polls every 1 second (see load_monitor.py for the single-process
+// caveat) and shows a smooth, continuous live-scrolling line — peaks
+// (local maxima) get a small visible dot, and every point is clickable to
+// see exactly what was happening at that moment (timestamp, active
+// users, requests/min, response times).
+//
+// The server retains a full 10-hour history (time-pruned, not a fixed
+// count) so reloading the dashboard restores the recent picture instead
+// of starting from empty. The chart itself only RENDERS up to
+// LIVE_LOAD_MAX_POINTS at a time for practicality — an actual
+// second-by-second 10-hour line would be tens of thousands of SVG path
+// points, slow to draw for no visible benefit at normal chart widths.
+// On restore this is populated by the server's own downsampled history
+// (spanning up to the full 10h); as fresh 1-second samples come in
+// afterward, the oldest ones slide out to keep rendering fast, the same
+// "live monitor" scroll behavior as before.
+const LIVE_LOAD_MAX_POINTS = 400;
+let _liveLoadHistory = [];       // [{ rpm, avgMs, maxMs, users, level, timestamp }]
+let _liveLoadTooltipPinned = null;
+
+async function loadLiveLoadHistory() {
+  try {
+    const res = await fetch('/api/dashboard/live-load-history');
+    if (!res.ok) return;
+    const data = await res.json();
+    _liveLoadHistory = (data.history || []).map(s => ({
+      rpm: s.requests_per_minute, avgMs: s.avg_response_ms, maxMs: s.max_response_ms,
+      users: s.active_users_now, level: s.level, timestamp: s.timestamp,
+    }));
+    if (_liveLoadHistory.length > LIVE_LOAD_MAX_POINTS) {
+      _liveLoadHistory = _liveLoadHistory.slice(_liveLoadHistory.length - LIVE_LOAD_MAX_POINTS);
+    }
+    renderLiveLoadChart();
+  } catch (e) {}
+}
+
+async function pollLiveLoad() {
+  try {
+    const res = await fetch('/api/dashboard/live-load');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    document.getElementById('dash-live-users').textContent = data.active_users_now;
+    document.getElementById('dash-live-rpm').textContent = data.requests_per_minute;
+    document.getElementById('dash-live-avgms').textContent = `${Math.round(data.avg_response_ms)}ms`;
+    document.getElementById('dash-live-maxms').textContent = `${Math.round(data.max_response_ms)}ms`;
+
+    const badge = document.getElementById('dash-load-badge');
+    badge.textContent = data.level;
+    badge.className = `dash-load-badge ${data.level}`;
+
+    _liveLoadHistory.push({
+      rpm: data.requests_per_minute, avgMs: data.avg_response_ms, maxMs: data.max_response_ms,
+      users: data.active_users_now, level: data.level, timestamp: data.timestamp,
+    });
+    if (_liveLoadHistory.length > LIVE_LOAD_MAX_POINTS) _liveLoadHistory.shift();
+    renderLiveLoadChart();
+  } catch (e) {}
+}
+
+// Catmull-Rom-to-Bezier conversion — turns the straight-segment point
+// list into a smooth, continuous curve through every point, matching the
+// "continuous graph" look rather than a jagged polyline.
+function smoothPathFor(pts) {
+  if (pts.length < 2) return '';
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i === 0 ? 0 : i - 1];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2[0]},${p2[1]}`;
+  }
+  return d;
+}
+
+function renderLiveLoadChart() {
+  const box = document.getElementById('dash-live-chart');
+  if (_liveLoadHistory.length < 2) {
+    box.innerHTML = '<div class="dash-empty">Gathering live data…</div>';
+    return;
+  }
+
+  // Was previously: fixed chart width, squeezing whatever data existed
+  // into a reserved slot near the right edge — with few points, that left
+  // a long empty stretch and the line crammed at the right. Now: a FIXED
+  // pixel spacing per point instead, so the very first point sits at the
+  // left edge and the chart naturally grows wider to the right as more
+  // samples come in, wrapped in a horizontally scrollable strip so
+  // scrolling left reaches earlier points once there are more than fit
+  // on screen at once.
+  const POINT_SPACING = 9;
+  const H = 150;
+  const marginLeft = 32, marginBottom = 8, marginTop = 12, marginRight = 16;
+  const n = _liveLoadHistory.length;
+  const W = marginLeft + marginRight + POINT_SPACING * (n - 1);
+  const plotH = H - marginTop - marginBottom;
+  const baseline = H - marginBottom;
+
+  const values = _liveLoadHistory.map(p => p.rpm);
+  const rawMax = Math.max(1, ...values);
+  const axisMax = rawMax <= 4 ? Math.max(2, rawMax) : Math.ceil(rawMax / 5) * 5;
+
+  const xFor = i => marginLeft + POINT_SPACING * i;
+  const yFor = v => marginTop + plotH - (v / axisMax) * plotH;
+
+  const coords = _liveLoadHistory.map((p, i) => [xFor(i), yFor(p.rpm)]);
+  const smoothLine = smoothPathFor(coords);
+  const areaPath = `${smoothLine} L${xFor(n - 1)},${baseline} L${xFor(0)},${baseline} Z`;
+
+  let gridlines = '', yLabels = '';
+  for (let g = 0; g <= 2; g++) {
+    const value = Math.round((axisMax / 2) * g);
+    const y = yFor(value);
+    gridlines += `<line x1="${marginLeft}" y1="${y}" x2="${W - marginRight}" y2="${y}" stroke="var(--border-soft)" stroke-width="1" stroke-dasharray="2,3"/>`;
+    yLabels += `<text x="${marginLeft - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="var(--text-muted)">${value}</text>`;
+  }
+
+  // Peaks — local maxima only (higher than both neighbors) — get a small
+  // visible dot. Every point (peak or not) still gets an invisible,
+  // larger click target so clicking anywhere near the line works, not
+  // just exactly on a peak.
+  let peakDots = '', clickTargets = '';
+  _liveLoadHistory.forEach((p, i) => {
+    const isPeak = i > 0 && i < n - 1 && p.rpm > _liveLoadHistory[i - 1].rpm && p.rpm > _liveLoadHistory[i + 1].rpm;
+    const isLast = i === n - 1;
+    if (isPeak || isLast) {
+      peakDots += `<circle cx="${xFor(i)}" cy="${yFor(p.rpm)}" r="3" fill="var(--success)" stroke="var(--bg-elevated)" stroke-width="1.4"/>`;
+    }
+    clickTargets += `<circle cx="${xFor(i)}" cy="${yFor(p.rpm)}" r="7" fill="transparent" style="cursor:pointer;" onclick="showLiveLoadTooltip(event, ${i})"/>`;
+  });
+
+  const lastVal = _liveLoadHistory[n - 1].rpm;
+  const startTime = new Date(_liveLoadHistory[0].timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const endTime = new Date(_liveLoadHistory[n - 1].timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // Was the scroll strip already at (or very near) its right edge before
+  // this re-render? If so, keep it pinned there as new points arrive —
+  // the normal "live" behavior. If the admin has deliberately scrolled
+  // left to look at earlier history, don't yank them back to the end on
+  // every 1-second refresh.
+  const existingScroll = document.getElementById('dash-live-scroll');
+  const wasAtEnd = !existingScroll || (existingScroll.scrollWidth - existingScroll.scrollLeft - existingScroll.clientWidth < 40);
+
+  box.innerHTML = `
+    <div class="dash-live-time-labels"><span>${startTime}</span><span>${endTime}</span></div>
+    <div style="position:relative;">
+      <div id="dash-live-scroll" class="dash-live-scroll">
+        <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;">
+          <defs>
+            <linearGradient id="dash-live-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--success)" stop-opacity="0.25"/>
+              <stop offset="100%" stop-color="var(--success)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          ${gridlines}
+          <line x1="${marginLeft}" y1="${baseline}" x2="${W - marginRight}" y2="${baseline}" stroke="var(--border-strong)" stroke-width="1"/>
+          ${yLabels}
+          <path d="${areaPath}" fill="url(#dash-live-fill)" stroke="none"/>
+          <path d="${smoothLine}" fill="none" stroke="var(--success)" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
+          ${peakDots}
+          <circle cx="${xFor(n - 1)}" cy="${yFor(lastVal)}" r="4" fill="var(--success)" stroke="var(--bg-elevated)" stroke-width="1.6"/>
+          ${clickTargets}
+        </svg>
+      </div>
+      <div id="dash-live-tooltip" class="dash-live-tooltip"></div>
+    </div>`;
+
+  const scrollEl = document.getElementById('dash-live-scroll');
+  if (scrollEl && wasAtEnd) scrollEl.scrollLeft = scrollEl.scrollWidth;
+}
+
+function showLiveLoadTooltip(evt, index) {
+  evt.stopPropagation();
+  const p = _liveLoadHistory[index];
+  const tip = document.getElementById('dash-live-tooltip');
+  if (!p || !tip) return;
+
+  const when = new Date(p.timestamp * 1000);
+  const timeStr = when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  tip.innerHTML = `
+    <div class="dash-live-tooltip-time">${timeStr}</div>
+    <div class="dash-live-tooltip-row"><span>Active users</span><b>${p.users}</b></div>
+    <div class="dash-live-tooltip-row"><span>Requests / min</span><b>${p.rpm}</b></div>
+    <div class="dash-live-tooltip-row"><span>Avg response</span><b>${Math.round(p.avgMs)}ms</b></div>
+    <div class="dash-live-tooltip-row"><span>Slowest response</span><b>${Math.round(p.maxMs)}ms</b></div>
+    <div class="dash-live-tooltip-row"><span>Load level</span><b class="dash-load-badge ${p.level}" style="font-size:9px;">${p.level}</b></div>`;
+
+  const wrapper = tip.parentElement; // the position:relative div (doesn't scroll, unlike the SVG strip inside it)
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const leftPx = evt.clientX - wrapperRect.left;
+  tip.style.left = `${Math.min(wrapperRect.width - 190, Math.max(0, leftPx))}px`;
+  tip.classList.add('open');
+  _liveLoadTooltipPinned = index;
+}
+
+document.addEventListener('click', (e) => {
+  if (_liveLoadTooltipPinned !== null && !e.target.closest('#dash-live-chart')) {
+    const tip = document.getElementById('dash-live-tooltip');
+    if (tip) tip.classList.remove('open');
+    _liveLoadTooltipPinned = null;
+  }
+});
+
+// ── New-ticket popup — a client raising a ticket should be hard to miss,
+//    not just a passive line in a panel. Shows once per page load if
+//    there's at least one still-Open (brand new, not yet even looked at)
+//    ticket. 'Checking' status tickets don't re-trigger this — the admin
+//    is already aware of and working on those.
+async function checkForNewTickets() {
+  try {
+    const res = await fetch('/api/help-tickets');
+    const data = await res.json();
+    const openTickets = (data.tickets || []).filter(t => t.status === 'Open');
+    if (!openTickets.length) return;
+
+    document.getElementById('tickets-popup-list').innerHTML = openTickets.map(t => `
+      <div class="tk-popup-row">
+        <div class="tk-popup-subject">${escapeHtml(t.subject)}</div>
+        <div class="tk-popup-meta">${escapeHtml(t.reporter_type)} — ${escapeHtml(t.submitted_by)} · ${escapeHtml(t.created_at)}</div>
+      </div>`).join('');
+    document.getElementById('tickets-popup-modal').classList.add('open');
+  } catch (e) {}
+}
+
+function dismissTicketsPopup() {
+  document.getElementById('tickets-popup-modal').classList.remove('open');
+}
+
+function goToRaisedTickets() {
+  dismissTicketsPopup();
+  window.location.href = "{{ url_for('settings_bp.settings_page') }}?view=help";
+}
+</script>
+{% endblock %}

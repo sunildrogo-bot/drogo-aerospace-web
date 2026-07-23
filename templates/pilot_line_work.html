@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}{{ line.name }} — Pilot Work{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
+<style>
+  .pw-page{height:100vh;overflow:hidden;display:flex;flex-direction:column;background:var(--bg-base);}
+  .pw-content{flex:1;min-height:0;overflow-y:auto;padding:28px 32px;}
+  .pw-back{font-size:12px;color:var(--text-muted);text-decoration:none;display:inline-block;margin-bottom:10px;}
+  .pw-title{font-size:20px;font-weight:800;color:var(--text-primary);}
+  .pw-sub{font-size:12.5px;color:var(--text-muted);margin-top:4px;margin-bottom:22px;}
+
+  .pw-tower-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:8px;background:var(--bg-elevated);}
+  .pw-tower-name{font-size:13.5px;font-weight:700;color:var(--text-primary);}
+  .pw-tower-status{font-size:11px;margin-top:2px;}
+  .pw-tower-status.done{color:var(--success);}
+  .pw-tower-status.pending{color:var(--text-muted);}
+  .pw-capture-btn{padding:8px 16px;border-radius:8px;background:var(--accent);color:#fff;font-size:12px;font-weight:700;border:none;cursor:pointer;}
+  .pw-capture-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  /* Live camera modal */
+  .pw-cam-modal{display:none;position:fixed;inset:0;background:#000;z-index:4000;flex-direction:column;}
+  .pw-cam-modal.open{display:flex;}
+  .pw-cam-video-wrap{flex:1;position:relative;overflow:hidden;background:#111;}
+  .pw-cam-video-wrap video{width:100%;height:100%;object-fit:cover;}
+  .pw-cam-status{position:absolute;top:16px;left:16px;right:16px;padding:10px 14px;border-radius:10px;background:rgba(0,0,0,.6);color:#fff;font-size:12.5px;text-align:center;}
+  .pw-cam-status.ok{background:rgba(31,157,104,.75);}
+  .pw-cam-status.bad{background:rgba(200,60,50,.75);}
+  .pw-cam-controls{padding:20px;display:flex;align-items:center;justify-content:center;gap:30px;background:#000;}
+  .pw-cam-cancel{color:#fff;font-size:13px;background:none;border:none;cursor:pointer;}
+  .pw-cam-shutter{width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,.4);cursor:pointer;}
+  .pw-cam-shutter:disabled{background:#666;cursor:not-allowed;}
+  .pw-cam-uploading{color:#fff;font-size:13px;}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="pw-page">
+  <nav class="navbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-weight:800;color:var(--text-primary);">DROGO AEROSPACE</span>
+      <span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(61,107,143,.12);color:#3d6b8f;">PILOT</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <span style="font-size:13px;color:var(--text-secondary);">{{ user_name }}</span>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="pw-content">
+    <a class="pw-back" href="{{ url_for('pilot_dashboard') }}">← Assigned Work</a>
+    <div class="pw-title">{{ line.name }}</div>
+    <div class="pw-sub" id="pw-progress-text">Loading towers…</div>
+    <div id="pw-tower-list"></div>
+  </div>
+</div>
+
+<div class="pw-cam-modal" id="pw-cam-modal">
+  <div class="pw-cam-video-wrap">
+    <video id="pw-cam-video" autoplay playsinline muted></video>
+    <div class="pw-cam-status" id="pw-cam-status">Getting your location…</div>
+  </div>
+  <div class="pw-cam-controls">
+    <button class="pw-cam-cancel" onclick="closeCameraModal()">Cancel</button>
+    <button class="pw-cam-shutter" id="pw-cam-shutter" disabled onclick="captureShot()"></button>
+    <div style="width:50px;"></div>
+  </div>
+</div>
+<canvas id="pw-cam-canvas" style="display:none;"></canvas>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LINE_ID = {{ line.id }};
+const LINE_KML_URL = {{ (line.kml_url or '') | tojson }};
+const CAPTURE_BUFFER_M = 70;
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+function pickTowerLabel(props) {
+  if (!props) return '';
+  for (const key of ['name', 'Name', 'NAME', 'tower', 'Tower', 'label', 'Label']) {
+    if (props[key] != null && String(props[key]).trim()) return String(props[key]).trim();
+  }
+  const vals = Object.values(props).filter(v => v != null && String(v).trim());
+  return vals.length ? String(vals[0]).trim() : '?';
+}
+
+let towerPoints = [];
+let capturedLabels = new Set();
+
+async function init() {
+  if (!LINE_KML_URL) {
+    document.getElementById('pw-progress-text').textContent = 'No KML uploaded for this line yet — nothing to work on.';
+    return;
+  }
+  try {
+    const kmlRes = await fetch(LINE_KML_URL);
+    const kmlText = await kmlRes.text();
+    const kmlDom = new DOMParser().parseFromString(kmlText, 'text/xml');
+    const geojson = toGeoJSON.kml(kmlDom);
+    towerPoints = (geojson.features || [])
+      .filter(f => f.geometry && f.geometry.type === 'Point')
+      .map(f => ({ label: pickTowerLabel(f.properties), lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] }));
+  } catch (e) {
+    document.getElementById('pw-progress-text').textContent = "Could not read this line's KML.";
+    return;
+  }
+
+  if (!towerPoints.length) {
+    document.getElementById('pw-progress-text').textContent = 'No tower points found in this KML.';
+    return;
+  }
+
+  await loadCapturedStatus();
+  renderTowerList();
+}
+
+async function loadCapturedStatus() {
+  try {
+    const res = await fetch(`/api/lines/${LINE_ID}/tower-photo-labels`);
+    const data = await res.json();
+    capturedLabels = new Set(data.labels || []);
+  } catch (e) { capturedLabels = new Set(); }
+}
+
+function renderTowerList() {
+  const doneCount = towerPoints.filter(t => capturedLabels.has(t.label)).length;
+  document.getElementById('pw-progress-text').textContent = `${doneCount}/${towerPoints.length} towers captured`;
+
+  const sorted = [...towerPoints].sort((a, b) => {
+    const aDone = capturedLabels.has(a.label), bDone = capturedLabels.has(b.label);
+    if (aDone !== bDone) return aDone ? 1 : -1;
+    return a.label.localeCompare(b.label, undefined, { numeric: true });
+  });
+
+  document.getElementById('pw-tower-list').innerHTML = sorted.map(t => {
+    const done = capturedLabels.has(t.label);
+    return `
+      <div class="pw-tower-row">
+        <div>
+          <div class="pw-tower-name">Tower ${escapeHtml(t.label)}</div>
+          <div class="pw-tower-status ${done ? 'done' : 'pending'}">${done ? '✓ Captured' : 'Not captured yet'}</div>
+        </div>
+        <button class="pw-capture-btn" onclick='openCameraModal(${JSON.stringify(t)})'>${done ? 'Capture Again' : 'Capture Photo'}</button>
+      </div>`;
+  }).join('');
+}
+
+// ── Live camera capture, GPS-gated ──────────────────────────────────────
+let cameraStream = null;
+let gpsWatchId = null;
+let currentTarget = null;
+let lastKnownPosition = null;
+
+async function openCameraModal(tower) {
+  currentTarget = tower;
+  const modal = document.getElementById('pw-cam-modal');
+  const video = document.getElementById('pw-cam-video');
+  const shutter = document.getElementById('pw-cam-shutter');
+  const status = document.getElementById('pw-cam-status');
+
+  modal.classList.add('open');
+  shutter.disabled = true;
+  status.className = 'pw-cam-status';
+  status.textContent = 'Getting your location…';
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    video.srcObject = cameraStream;
+  } catch (e) {
+    status.className = 'pw-cam-status bad';
+    status.textContent = 'Could not access the camera — check your browser permissions.';
+    return;
+  }
+
+  if (!navigator.geolocation) {
+    status.className = 'pw-cam-status bad';
+    status.textContent = "This device has no location support — can't verify your position.";
+    return;
+  }
+
+  gpsWatchId = navigator.geolocation.watchPosition(onGpsUpdate, onGpsError, {
+    enableHighAccuracy: true, maximumAge: 2000, timeout: 10000,
+  });
+}
+
+function onGpsUpdate(pos) {
+  lastKnownPosition = pos.coords;
+  const shutter = document.getElementById('pw-cam-shutter');
+  const status = document.getElementById('pw-cam-status');
+  if (!currentTarget) return;
+
+  const dist = haversineMeters(pos.coords.latitude, pos.coords.longitude, currentTarget.lat, currentTarget.lng);
+  if (dist <= CAPTURE_BUFFER_M) {
+    shutter.disabled = false;
+    status.className = 'pw-cam-status ok';
+    status.textContent = `You're at the right location (${Math.round(dist)}m from tower) — ready to capture.`;
+  } else {
+    shutter.disabled = true;
+    status.className = 'pw-cam-status bad';
+    status.textContent = `You're ${Math.round(dist)}m from Tower ${currentTarget.label} — move within ${CAPTURE_BUFFER_M}m to capture. Upload from the correct location.`;
+  }
+}
+
+function onGpsError() {
+  const status = document.getElementById('pw-cam-status');
+  status.className = 'pw-cam-status bad';
+  status.textContent = 'Could not read your location — check location permissions and try again.';
+  document.getElementById('pw-cam-shutter').disabled = true;
+}
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function closeCameraModal() {
+  document.getElementById('pw-cam-modal').classList.remove('open');
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+  currentTarget = null;
+  lastKnownPosition = null;
+}
+
+async function captureShot() {
+  if (!currentTarget || !lastKnownPosition) return;
+  // Re-check distance right at capture time too — the shutter being
+  // enabled reflects the last GPS reading, which could be a couple of
+  // seconds stale if the pilot is moving right at the buffer's edge.
+  const dist = haversineMeters(lastKnownPosition.latitude, lastKnownPosition.longitude, currentTarget.lat, currentTarget.lng);
+  if (dist > CAPTURE_BUFFER_M) {
+    onGpsUpdate({ coords: lastKnownPosition });
+    return;
+  }
+
+  const video = document.getElementById('pw-cam-video');
+  const canvas = document.getElementById('pw-cam-canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const status = document.getElementById('pw-cam-status');
+  const shutter = document.getElementById('pw-cam-shutter');
+  shutter.disabled = true;
+  status.className = 'pw-cam-status';
+  status.textContent = 'Uploading…';
+
+  canvas.toBlob(async blob => {
+    const fd = new FormData();
+    fd.append('tower', currentTarget.label);
+    fd.append('image', blob, 'capture.jpg');
+    fd.append('tower_lat', currentTarget.lat);
+    fd.append('tower_lng', currentTarget.lng);
+    fd.append('capture_lat', lastKnownPosition.latitude);
+    fd.append('capture_lng', lastKnownPosition.longitude);
+
+    try {
+      const res = await fetch(`/api/lines/${LINE_ID}/tower-photos/pilot-capture`, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        status.className = 'pw-cam-status bad';
+        status.textContent = data.error || 'Upload failed — try again.';
+        shutter.disabled = false;
+        return;
+      }
+      capturedLabels.add(currentTarget.label);
+      closeCameraModal();
+      renderTowerList();
+    } catch (e) {
+      status.className = 'pw-cam-status bad';
+      status.textContent = 'Network error — try again.';
+      shutter.disabled = false;
+    }
+  }, 'image/jpeg', 0.9);
+}
+
+init();
+</script>
+{% endblock %}

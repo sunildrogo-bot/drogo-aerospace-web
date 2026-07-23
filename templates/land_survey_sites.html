@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ project_name }} Sites — DROGO AEROSPACE{% endblock %}
+
+{% block head %}
+<style>
+  .projects-page{min-height:100vh;display:flex;flex-direction:column;background:var(--bg-base);}
+  .cover-banner{
+    position:relative;width:100%;height:200px;flex-shrink:0;display:flex;flex-direction:column;justify-content:flex-end;padding:20px 28px;
+    background:
+      linear-gradient(180deg,rgba(224, 226, 231, 0.803) 0%,rgba(98, 98, 100, 0.92) 100%),
+      url('https://images.pexels.com/photos/32599646/pexels-photo-32599646.jpeg?auto=compress&cs=tinysrgb&w=1600') center 40%/cover no-repeat;
+  }
+  .banner-title{font-size:11px;letter-spacing:.28em;color:var(--accent-sky);text-transform:uppercase;margin-bottom:4px;font-weight:600;}
+  .banner-heading{font-size:22px;font-weight:800;color:#fff;}
+  .banner-heading span{color:#fff;}
+  .banner-sub{font-size:12.5px;color:rgba(255,255,255,.75);margin-top:4px;}
+  .projects-area{padding:28px;background:var(--bg-base);flex:1;}
+  .section-label{font-size:11px;letter-spacing:.28em;color:var(--text-muted);text-transform:uppercase;margin-bottom:16px;font-weight:600;}
+  .projects-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .project-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;cursor:pointer;transition:border-color .15s,transform .15s;text-decoration:none;display:block;box-shadow:0 1px 3px rgba(27,30,36,.05);}
+  .project-card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .card-banner{position:relative;height:120px;background-size:cover;background-position:center;}
+  .card-banner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,11,22,.1) 0%,rgba(6,11,22,.85) 100%);}
+  .card-tag{position:absolute;top:12px;left:12px;z-index:5;background:rgba(6,11,22,.78);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:4px 10px;font-size:11px;color:#fff;letter-spacing:.08em;font-weight:700;}
+  .card-body{padding:16px 18px;}
+  .card-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+  .card-desc{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:12px;}
+  .card-meta{display:flex;gap:8px;flex-wrap:wrap;}
+  .meta-chip{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--text-secondary);background:var(--bg-elevated-2);}
+  .meta-chip.active{border-color:rgba(31,157,104,.4);color:#1f9d68;background:rgba(31,157,104,.08);}
+  .card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-soft);}
+  .card-action{font-size:12px;color:var(--accent);font-weight:600;}
+  .card-lines-badge{font-size:11px;color:var(--text-muted);}
+  .sites-empty{padding:60px 0;text-align:center;color:var(--text-muted);}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="projects-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 18L7 12L11 15L15 9L22 18H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="15" cy="7" r="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="15" y1="2" x2="15" y2="5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12.5" y1="4" x2="14" y2="5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="17.5" y1="4" x2="16" y2="5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">{{ project_name }} <span>/ {{ project_full }}</span></div>
+      <a href="{{ url_for('land_survey_dashboard') }}" class="btn-ghost">← Land Survey</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+  <div class="cover-banner">
+    <div class="banner-title">{{ project_key }} · land survey sites</div>
+    <div class="banner-heading"><span>{{ project_full }}</span></div>
+    <div class="banner-sub">Select a surveyed site to visualise on the map</div>
+  </div>
+  <div class="projects-area">
+    <div class="section-label">Surveyed Sites</div>
+    {% if sites %}
+    <div class="projects-grid">
+      {% for s in sites %}
+      <a href="{{ url_for(s.route) }}" class="project-card">
+        <div class="card-banner" style="background-image:url('https://images.pexels.com/photos/32599646/pexels-photo-32599646.jpeg?auto=compress&cs=tinysrgb&w=800');">
+          <div class="card-tag">{{ s.name }}</div>
+        </div>
+        <div class="card-body">
+          <div class="card-title">{{ s.name }}</div>
+          <div class="card-desc">Satellite-mapped survey site with georeferenced tower points.</div>
+          <div class="card-meta">
+            <span class="meta-chip active">Active</span>
+            <span class="meta-chip">Satellite View</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-action">Open Site →</span>
+            <span class="card-lines-badge">View Map</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="sites-empty">
+      <p>No surveyed sites have been published for {{ project_name }} yet. Please check back soon.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

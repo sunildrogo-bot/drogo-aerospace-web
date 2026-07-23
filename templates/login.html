@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+{% block title %}Login — Drogo{% endblock %}
+
+{% block body %}
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+.navbar{
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    z-index:50;
+
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+
+    padding:16px 40px;
+
+    background:rgba(255,255,255,.7);
+    backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(0,0,0,.05);
+}
+
+.nav-brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+
+    text-decoration:none;
+    color:#2f3640;
+
+    font-size:15px;
+    font-weight:700;
+    letter-spacing:1px;
+}
+
+.nav-brand-mark{
+    width:28px;
+    height:28px;
+    color:#7dc7f7;
+    flex-shrink:0;
+}
+
+.nav-actions{
+    list-style:none;
+    display:flex;
+    align-items:center;
+    gap:28px;
+}
+
+.nav-actions a{
+    text-decoration:none;
+    color:#555;
+    font-size:14px;
+    font-weight:600;
+    transition:.25s;
+}
+
+.nav-actions a:hover{
+    color:#7dc7f7;
+}
+
+.login-wrapper{
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    position:relative;
+
+    padding:90px 20px 30px;
+
+    background:url("{{ url_for('static', filename='images/login.png') }}")
+               center center/cover no-repeat;
+}
+
+.login-wrapper::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    backdrop-filter:blur(6px);
+}
+
+.login-card{
+    position:relative;
+    z-index:2;
+
+    width:100%;
+    max-width:380px;
+
+    background:rgba(255,255,255,0.2);
+    backdrop-filter:blur(10px);
+
+    border-radius:22px;
+    padding:34px;
+
+    box-shadow:
+        0 20px 50px rgba(0,0,0,.12);
+
+    transition:all .35s ease;
+
+    --theme:#8b9097;
+    --theme-soft:rgba(139,144,151,.15);
+}
+
+.login-card.admin-mode{
+    transform:translateY(-4px);
+}
+
+.login-card h1{
+    font-size:28px;
+    font-weight:700;
+    color:#333;
+    margin-bottom:8px;
+    transition:.3s;
+}
+
+.login-card p{
+    color:#666;
+    font-size:13.5px;
+    line-height:1.5;
+    margin-bottom:22px;
+    transition:.3s;
+}
+
+/* Toggle */
+
+.role-card{
+    border:1px solid var(--theme);
+    background:var(--theme-soft);
+    border-radius:16px;
+    padding:14px 16px 16px;
+    margin-bottom:22px;
+    transition:all .3s ease;
+}
+
+.role-toggle{
+    position:relative;
+    display:flex;
+    background:#fff;
+    border-radius:12px;
+    padding:3px;
+    margin-bottom:16px;
+}
+
+.role-toggle::before{
+    content:'';
+    position:absolute;
+    top:3px;
+    left:3px;
+
+    width:calc(33.333% - 4px);
+    height:calc(100% - 6px);
+
+    background:var(--theme);
+    border-radius:9px;
+
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+
+    transition:all .3s ease;
+}
+
+.role-toggle.admin::before{
+    transform:translateX(100%);
+}
+
+.role-toggle.pilot::before{
+    transform:translateX(200%);
+}
+
+.role-toggle input{
+    display:none;
+}
+
+.role-toggle label{
+    flex:1;
+    text-align:center;
+    padding:10px;
+    cursor:pointer;
+    z-index:1;
+    font-weight:600;
+    font-size:14px;
+    color:#676869;
+    user-select:none;
+    transition:.3s;
+}
+
+.role-toggle label.active{
+    color:#fff;
+}
+
+.input-group{
+    margin-bottom:16px;
+}
+
+.credentials-section{
+    padding-top:2px;
+}
+
+.credentials-section .input-group label{
+    color:#555;
+}
+
+.credentials-section .input-group input{
+    background:#fff;
+}
+
+.input-group label{
+    display:block;
+    margin-bottom:6px;
+    color:#555;
+    font-size:13px;
+}
+
+.input-group input{
+    width:100%;
+    padding:12px 14px;
+
+    border:1px solid #dfe4ea;
+    border-radius:11px;
+
+    font-size:14px;
+    outline:none;
+
+    transition:.25s;
+}
+
+.input-group input:focus{
+    border-color:var(--theme);
+    box-shadow:0 0 0 4px var(--theme-soft);
+}
+
+.login-btn{
+    width:100%;
+    height:50px;
+
+    border:none;
+    border-radius:13px;
+
+    background:var(--theme);
+    color:white;
+
+    font-size:15px;
+    font-weight:600;
+
+    margin-top:4px;
+
+    cursor:pointer;
+    transition:.3s;
+}
+
+.login-btn:hover{
+    transform:translateY(-2px);
+}
+
+.error-msg{
+    background:#fdeaea;
+    color:#c0392b;
+    border:1px solid #f3c4c4;
+    border-radius:10px;
+    padding:10px 12px;
+    margin-bottom:18px;
+    font-size:13px;
+}
+
+@media(max-width:600px){
+
+    .navbar{
+        padding:14px 20px;
+    }
+
+    .nav-brand{
+        font-size:13px;
+    }
+
+    .login-wrapper{
+        padding:80px 16px 24px;
+    }
+
+    .login-card{
+        padding:26px;
+    }
+
+    .login-card h1{
+        font-size:24px;
+    }
+}
+
+</style>
+
+<nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+        <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+            <!-- Drone Body -->
+            <rect x="8" y="9" width="8" height="7" rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.4"/>
+
+            <!-- Face (cute eyes) -->
+            <circle cx="11" cy="12" r="0.9" fill="currentColor"/>
+            <circle cx="13" cy="12" r="0.9" fill="currentColor"/>
+
+            <!-- Smile -->
+            <path d="M11 14C11.5 14.6 12.5 14.6 13 14"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linecap="round"/>
+
+            <!-- Propeller arms -->
+            <path d="M8 10L5.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M16 10L18.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M8 15L5.5 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M16 15L18.5 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+
+            <!-- Propeller dots -->
+            <circle cx="5.2" cy="8.2" r="0.8" fill="currentColor"/>
+            <circle cx="18.8" cy="8.2" r="0.8" fill="currentColor"/>
+            <circle cx="5.2" cy="16.8" r="0.8" fill="currentColor"/>
+            <circle cx="18.8" cy="16.8" r="0.8" fill="currentColor"/>
+
+            <!-- Hover float effect base (subtle hover feel even without animation) -->
+            <path d="M9 18H15" stroke="currentColor" stroke-width="1" opacity="0.3" stroke-linecap="round"/>
+
+        </svg>
+        DROGO AEROSPACE
+    </a>
+
+    <ul class="nav-actions">
+        <li><a href="{{ url_for('home') }}">Home</a></li>
+    </ul>
+</nav>
+
+<div class="login-wrapper">
+
+    <div class="login-card">
+
+        <h1 id="loginTitle">Welcome Back</h1>
+
+        <p id="loginSubtitle">
+            Sign in to access NOVA+ Power Transmission Intelligence Platform.
+        </p>
+
+        {% if error %}
+        <div class="error-msg">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('login') }}">
+
+            <div class="role-card" id="roleCard">
+
+                <div class="role-toggle" id="roleToggle">
+
+                    <input
+                        type="radio"
+                        name="login_as"
+                        id="role-client"
+                        value="Client User"
+                        {% if login_as != 'Admin' %}checked{% endif %}
+                    >
+
+                    <label for="role-client">
+                        Client
+                    </label>
+
+                    <input
+                        type="radio"
+                        name="login_as"
+                        id="role-admin"
+                        value="Admin"
+                        {% if login_as == 'Admin' %}checked{% endif %}
+                    >
+
+                    <label for="role-admin">
+                        Admin
+                    </label>
+
+                    <input
+                        type="radio"
+                        name="login_as"
+                        id="role-pilot"
+                        value="Pilot"
+                        {% if login_as == 'Pilot' %}checked{% endif %}
+                    >
+
+                    <label for="role-pilot">
+                        Pilot
+                    </label>
+
+                </div>
+
+                <div class="credentials-section">
+
+
+                    <div class="input-group">
+                        <label>Email</label>
+
+                        <input
+                            type="email"
+                            name="email"
+                            placeholder="you@example.com"
+                            required
+                        >
+                    </div>
+
+                    <div class="input-group">
+                        <label>Password</label>
+
+                        <input
+                            type="password"
+                            name="password"
+                            placeholder="••••••••"
+                            required
+                        >
+                    </div>
+
+                </div>
+
+                <button
+                    type="submit"
+                    class="login-btn"
+                    id="loginBtn"
+                >
+                    Sign In
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+<script>
+
+const clientRadio = document.getElementById('role-client');
+const adminRadio  = document.getElementById('role-admin');
+const pilotRadio  = document.getElementById('role-pilot');
+
+const roleToggle = document.getElementById('roleToggle');
+const loginCard  = document.querySelector('.login-card');
+
+const title      = document.getElementById('loginTitle');
+const subtitle   = document.getElementById('loginSubtitle');
+
+const labelClient = document.querySelector('label[for="role-client"]');
+const labelAdmin  = document.querySelector('label[for="role-admin"]');
+const labelPilot  = document.querySelector('label[for="role-pilot"]');
+
+
+const THEMES = {
+    client:{ color:'#8b9097', soft:'rgba(139,144,151,.15)' },
+    admin: { color:'#46474a', soft:'rgba(70,71,74,.15)' },
+    pilot: { color:'#3d6b8f', soft:'rgba(61,107,143,.15)' }
+};
+
+function setTheme(theme){
+    loginCard.style.setProperty('--theme', theme.color);
+    loginCard.style.setProperty('--theme-soft', theme.soft);
+}
+
+function updateRole(){
+    const labels = { client: labelClient, admin: labelAdmin, pilot: labelPilot };
+    Object.values(labels).forEach(l => l.classList.remove('active'));
+    roleToggle.classList.remove('admin', 'pilot');
+    loginCard.classList.remove('admin-mode', 'pilot-mode');
+
+    if (adminRadio.checked) {
+        roleToggle.classList.add('admin');
+        loginCard.classList.add('admin-mode');
+        title.textContent = "Admin Portal";
+        subtitle.textContent = "Sign in to manage NOVA+ administration and platform controls.";
+        setTheme(THEMES.admin);
+        labelAdmin.classList.add('active');
+    } else if (pilotRadio.checked) {
+        roleToggle.classList.add('pilot');
+        loginCard.classList.add('pilot-mode');
+        title.textContent = "Pilot Portal";
+        subtitle.textContent = "Sign in to see your assigned inspection work.";
+        setTheme(THEMES.pilot);
+        labelPilot.classList.add('active');
+    } else {
+        title.textContent = "Welcome Back";
+        subtitle.textContent = "Sign in to access NOVA+ Power Transmission Intelligence Platform.";
+        setTheme(THEMES.client);
+        labelClient.classList.add('active');
+    }
+}
+
+clientRadio.addEventListener('change', updateRole);
+adminRadio.addEventListener('change', updateRole);
+pilotRadio.addEventListener('change', updateRole);
+
+updateRole();
+
+</script>
+
+{% endblock %}

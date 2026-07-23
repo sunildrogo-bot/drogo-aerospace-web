@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}NOVA+{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    :root{
+      /* ---- NOVA+ design system (neutral / light) ---- */
+      --bg-base:#f3f4f6;
+      --bg-panel:#ffffff;
+      --bg-elevated:#ffffff;
+      --bg-elevated-2:#f6f7f9;
+      --border:#e3e5ea;
+      --border-soft:#edeef1;
+      --border-strong:#d2d5dc;
+      --accent:#3f4249;        /* neutral charcoal — primary actions / active states */
+      --accent-light:#6b6e76;
+      --accent-deep:#23252a;
+      --accent-sky:#7fa7c9;    /* muted slate-blue — small accent touches only */
+      --text-primary:#1b1e24;
+      --text-secondary:#5a5f68;
+      --text-muted:#8b8f99;
+      --success:#1f9d68;
+      --warning:#b9821f;
+      --danger:#c94b42;
+      --radius-sm:8px;
+      --radius-md:12px;
+      --radius-lg:18px;
+      --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:var(--text-primary);}
+
+    /* Navbar */
+    .navbar{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--border-soft);background:var(--bg-panel);flex-shrink:0;}
+    .nav-brand{display:flex;align-items:center;gap:9px;font-size:18px;font-weight:800;color:var(--text-primary);letter-spacing:.04em;cursor:pointer;text-decoration:none;}
+    .nav-brand-mark{width:26px;height:26px;flex-shrink:0;color:var(--accent);}
+    .nav-brand span{color:var(--text-primary);}
+    .nav-actions{display:flex;gap:20px;align-items:center;list-style:none;margin:0;padding:0;}
+    .nav-actions a{text-decoration:none;color:var(--text-primary);font-weight:500;}
+    .nav-actions a:hover{opacity:0.7;}
+    .btn-ghost{font-size:13px;font-weight:600;padding:9px 20px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:transparent;color:var(--text-secondary);cursor:pointer;transition:border-color .15s,color .15s,background .15s;text-decoration:none;display:inline-block;}
+    .btn-ghost:hover{color:var(--text-primary);background:rgba(63,66,73,.06);}
+    .btn-primary{font-size:13px;font-weight:600;padding:9px 20px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;transition:background .15s,border-color .15s;text-decoration:none;display:inline-block;}
+    .btn-primary:hover{background:var(--accent-light);border-color:var(--accent-light);}
+    .nav-user{font-size:13px;color:var(--text-secondary);}
+    .nav-user span{color:var(--accent-light);font-weight:600;}
+    .btn-logout{font-size:12.5px;font-weight:600;padding:7px 16px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:transparent;color:var(--text-secondary);cursor:pointer;transition:border-color .15s,color .15s;text-decoration:none;display:inline-block;}
+    .btn-logout:hover{border-color:var(--danger);color:var(--danger);}
+
+    /* Shared form field (used by admin "add user" form) */
+    .field{display:flex;flex-direction:column;gap:6px;}
+    .field label{font-size:11.5px;font-weight:600;color:var(--text-secondary);letter-spacing:.06em;text-transform:uppercase;}
+    .field input{background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13.5px;color:var(--text-primary);outline:none;transition:border-color .15s;width:100%;font-family:var(--font);}
+    .field input::placeholder{color:var(--text-muted);}
+    .field input:focus{border-color:var(--accent);}
+
+    .error-msg{font-size:12.5px;color:var(--danger);text-align:center;background:rgba(201,75,66,.08);border:1px solid rgba(201,75,66,.3);border-radius:var(--radius-sm);padding:9px;}
+
+    /* Shared delete-confirm modal (used by projects.js / chimney.js) */
+    .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;}
+    .modal-backdrop.open{display:flex;}
+    .modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-lg);width:100%;max-width:420px;padding:26px 28px;box-shadow:0 20px 60px rgba(0,0,0,.18);position:relative;}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+    .modal-title{font-size:16px;font-weight:800;color:var(--text-primary);}
+    .modal-close{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;line-height:1;font-size:20px;}
+    .modal-close:hover{color:var(--text-primary);}
+    .modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+    .btn-danger{font-size:13px;font-weight:600;padding:9px 18px;border-radius:var(--radius-sm);border:1px solid var(--danger);background:var(--danger);color:#fff;cursor:pointer;}
+    .btn-danger:hover{opacity:.9;}
+    .card-delete-btn{position:absolute;bottom:12px;right:12px;z-index:6;width:30px;height:30px;border-radius:8px;background:rgba(10,13,20,.82);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.22);box-shadow:0 2px 8px rgba(0,0,0,.25);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,transform .15s;}
+    .card-delete-btn:hover{background:var(--danger);border-color:var(--danger);transform:scale(1.06);}
+    .card-delete-btn svg{width:14px;height:14px;pointer-events:none;}
+
+    /* Announcement ticker — moved here from home.html so it actually shows
+       up on the pages logged-in users spend time on (dashboards), not just
+       the pre-login landing page, which nobody stays on after signing in. */
+    .ann-ticker{position:relative;width:100%;background:var(--bg-panel);border-bottom:1px solid var(--border-soft);overflow:hidden;display:none;padding:9px 0;}
+    .ann-ticker.show{display:block;}
+    .ann-ticker-track{display:flex;width:max-content;animation:ann-scroll 30s linear infinite;}
+    .ann-ticker-track:hover{animation-play-state:paused;}
+    .ann-ticker-item{display:flex;align-items:center;gap:9px;padding:0 40px;white-space:nowrap;font-size:13px;color:var(--text-secondary);}
+    .ann-ticker-item img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;}
+    .ann-ticker-item b{color:var(--text-primary);font-weight:700;}
+    .ann-ticker-dot{color:var(--border-strong);}
+    @keyframes ann-scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% if session.user_id %}
+<div class="ann-ticker" id="ann-ticker">
+  <div class="ann-ticker-track" id="ann-ticker-track"></div>
+</div>
+<script>
+  function escapeHtmlAnn(str) {
+    const d = document.createElement('div');
+    d.textContent = str == null ? '' : String(str);
+    return d.innerHTML;
+  }
+
+  async function loadAnnouncementsGlobal() {
+    const ticker = document.getElementById('ann-ticker');
+    const track = document.getElementById('ann-ticker-track');
+    if (!ticker || !track) return;
+    try {
+      const res = await fetch('/api/announcements');
+      const data = await res.json();
+      const items = data.announcements || [];
+      if (!items.length) { ticker.classList.remove('show'); return; }
+
+      const pieces = items.map(a => `
+        <span class="ann-ticker-item">
+          ${a.image_url ? `<img src="${escapeHtmlAnn(a.image_url)}" alt=""/>` : ''}
+          <b>${escapeHtmlAnn(a.title)}</b>${a.message ? ' — ' + escapeHtmlAnn(a.message) : ''}
+        </span>
+        <span class="ann-ticker-dot">●</span>
+      `).join('');
+      track.innerHTML = pieces + pieces;
+      ticker.classList.add('show');
+    } catch (e) {}
+  }
+
+  loadAnnouncementsGlobal();
+</script>
+{% endif %}
+{% block body %}{% endblock %}
+
+<!-- ── Shared delete confirmation modal (password-protected) ── -->
+<div class="modal-backdrop" id="delete-confirm-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Confirm Delete</div>
+      <button class="modal-close" onclick="closeDeleteConfirm()">&times;</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;" id="delete-confirm-message">
+      This action cannot be undone.
+    </div>
+    <div class="field">
+      <label>Delete Password</label>
+      <input type="password" id="delete-confirm-password" placeholder="Enter delete password" autocomplete="off"/>
+    </div>
+    <div class="error-msg" id="delete-confirm-error" style="display:none;margin-top:12px;"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeDeleteConfirm()">Cancel</button>
+      <button type="button" class="btn-danger" id="delete-confirm-btn" onclick="_submitDeleteConfirm()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Shared delete-with-password flow. Call:
+  //   requestDelete({ url: '/api/chimney-projects/12', label: 'Unit-2 Flue Stack', onSuccess: () => location.reload() })
+  let _deleteConfirmState = null;
+
+  function requestDelete(opts) {
+    _deleteConfirmState = opts;
+    document.getElementById('delete-confirm-message').textContent =
+      `Delete "${opts.label}"? This action cannot be undone.`;
+    document.getElementById('delete-confirm-password').value = '';
+    document.getElementById('delete-confirm-error').style.display = 'none';
+    document.getElementById('delete-confirm-modal').classList.add('open');
+    setTimeout(() => document.getElementById('delete-confirm-password').focus(), 50);
+  }
+
+  function closeDeleteConfirm() {
+    document.getElementById('delete-confirm-modal').classList.remove('open');
+    _deleteConfirmState = null;
+  }
+
+  async function _submitDeleteConfirm() {
+    if (!_deleteConfirmState) return;
+    const password = document.getElementById('delete-confirm-password').value;
+    const errBox = document.getElementById('delete-confirm-error');
+    const btn = document.getElementById('delete-confirm-btn');
+    errBox.style.display = 'none';
+    if (!password) { errBox.textContent = 'Delete password is required.'; errBox.style.display = 'block'; return; }
+
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    try {
+      const res = await fetch(_deleteConfirmState.url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        errBox.textContent = data.error || 'Could not delete — please try again.';
+        errBox.style.display = 'block';
+        return;
+      }
+      const onSuccess = _deleteConfirmState.onSuccess;
+      closeDeleteConfirm();
+      if (onSuccess) onSuccess();
+    } catch (e) {
+      errBox.textContent = 'Network error — please try again.';
+      errBox.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Delete';
+    }
+  }
+</script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% if session.user_id %}
+<!-- ── AI Assistant — floating chat widget, bottom-right, every page ── -->
+<style>
+  #ai-chat-toggle {
+    position: fixed; bottom: 24px; right: 24px; z-index: 3000;
+    width: 54px; height: 54px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  }
+  #ai-chat-toggle:hover { opacity: .92; }
+  #ai-chat-toggle svg { width: 24px; height: 24px; }
+  #ai-chat-panel {
+    position: fixed; bottom: 92px; right: 24px; z-index: 3000;
+    width: 360px; max-width: calc(100vw - 32px); height: 480px; max-height: calc(100vh - 130px);
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(0,0,0,.2); display: none; flex-direction: column; overflow: hidden;
+  }
+  #ai-chat-panel.open { display: flex; }
+  .ai-chat-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border-soft); flex-shrink: 0; }
+  .ai-chat-title { font-size: 13.5px; font-weight: 800; color: var(--text-primary); }
+  .ai-chat-close { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 4px; }
+  .ai-chat-close:hover { color: var(--text-primary); }
+  .ai-chat-messages { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .ai-msg { max-width: 85%; font-size: 12.5px; line-height: 1.5; padding: 9px 12px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; }
+  .ai-msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+  .ai-msg.assistant { align-self: flex-start; background: var(--bg-elevated-2); color: var(--text-primary); border-bottom-left-radius: 3px; }
+  .ai-msg.error { align-self: flex-start; background: rgba(201,75,66,.1); color: var(--danger); }
+  .ai-msg.typing { align-self: flex-start; color: var(--text-muted); font-style: italic; }
+  .ai-chat-input-row { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border-soft); flex-shrink: 0; }
+  .ai-chat-input-row input {
+    flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 20px; font-size: 12.5px;
+    background: var(--bg-elevated-2); color: var(--text-primary); outline: none;
+  }
+  .ai-chat-input-row input:focus { border-color: var(--accent); }
+  .ai-chat-send { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .ai-chat-send:disabled { opacity: .5; cursor: not-allowed; }
+
+  .ai-ticket-toggle {
+    font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--bg-elevated-2); color: var(--text-secondary); cursor: pointer;
+  }
+  .ai-ticket-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .ai-ticket-form { display: none; flex-direction: column; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border-soft); flex-shrink: 0; }
+  .ai-ticket-form.open { display: flex; }
+  .ai-ticket-form input, .ai-ticket-form textarea {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px;
+    background: var(--bg-elevated-2); color: var(--text-primary); outline: none; font-family: inherit; resize: vertical;
+  }
+  .ai-ticket-form input:focus, .ai-ticket-form textarea:focus { border-color: var(--accent); }
+  .ai-ticket-error { font-size: 11.5px; color: var(--danger); display: none; }
+  .ai-ticket-cancel, .ai-ticket-submit {
+    flex: 1; padding: 7px 0; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer;
+  }
+  .ai-ticket-cancel { background: none; border: 1px solid var(--border); color: var(--text-secondary); }
+  .ai-ticket-submit { background: var(--accent); border: none; color: #fff; }
+  .ai-ticket-submit:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+
+<button id="ai-chat-toggle" onclick="toggleAiChat()" title="Assistant">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+</button>
+
+<div id="ai-chat-panel">
+  <div class="ai-chat-head">
+    <div class="ai-chat-title">Assistant</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      {% if session.role != 'Admin' %}
+      <button class="ai-ticket-toggle" onclick="toggleTicketForm()">Raise a Ticket</button>
+      {% endif %}
+      <button class="ai-chat-close" onclick="toggleAiChat()">✕</button>
+    </div>
+  </div>
+  {% if session.role != 'Admin' %}
+  <div class="ai-ticket-form" id="ai-ticket-form">
+    <input type="text" id="ai-ticket-subject" placeholder="What's the issue? (short summary)"/>
+    <textarea id="ai-ticket-description" rows="3" placeholder="More detail (optional)"></textarea>
+    <div class="ai-ticket-error" id="ai-ticket-error"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="ai-ticket-cancel" onclick="toggleTicketForm()">Cancel</button>
+      <button class="ai-ticket-submit" id="ai-ticket-submit-btn" onclick="submitTicketForm()">Raise Ticket</button>
+    </div>
+  </div>
+  {% endif %}
+  <div class="ai-chat-messages" id="ai-chat-messages">
+    <div class="ai-msg assistant">{% if session.role == 'Admin' %}Hi! Ask me about your projects, divisions, lines, towers, or defects — I can also generate tower reports. I can't draw defect markings or take a photo upload through chat though — those need the regular screen.{% else %}Hi! Ask me about your projects, divisions, lines, towers, or defects — I can also generate tower reports and raise a support ticket if something's not working. I can't draw defect markings or take a photo upload through chat though — those need the regular screen.{% endif %}</div>
+  </div>
+  <div class="ai-chat-input-row">
+    <input type="text" id="ai-chat-input" placeholder="Ask something…" onkeydown="if(event.key==='Enter') sendAiChatMessage();"/>
+    <button class="ai-chat-send" id="ai-chat-send-btn" onclick="sendAiChatMessage()" title="Send">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  // Persisted across page navigation via sessionStorage — this is a
+  // traditional multi-page app (not a SPA), so moving to another module
+  // is a full page reload that would otherwise wipe the chat state kept
+  // only in JS variables. sessionStorage survives that (clears when the
+  // browser tab actually closes, which is the right lifetime for this —
+  // not meant to persist forever like localStorage would).
+  const AI_CHAT_STORAGE_KEY = 'drogoAiChatState';
+
+  let _aiChatHistory = [];       // raw Gemini conversation history, sent back on every request
+  let _aiDisplayMessages = [];   // [{role, text}] — simplified, just for re-rendering the message list
+  let _aiChatBusy = false;
+
+  function saveAiChatState() {
+    try {
+      sessionStorage.setItem(AI_CHAT_STORAGE_KEY, JSON.stringify({
+        history: _aiChatHistory,
+        messages: _aiDisplayMessages,
+        open: document.getElementById('ai-chat-panel').classList.contains('open'),
+      }));
+    } catch (e) {}
+  }
+
+  function restoreAiChatState() {
+    let saved = null;
+    try {
+      saved = JSON.parse(sessionStorage.getItem(AI_CHAT_STORAGE_KEY) || 'null');
+    } catch (e) {}
+    if (!saved) return;
+
+    _aiChatHistory = saved.history || [];
+    _aiDisplayMessages = saved.messages || [];
+    const box = document.getElementById('ai-chat-messages');
+    // Clear the default greeting and replace with the restored thread —
+    // only if there's actually a restored conversation to show.
+    if (_aiDisplayMessages.length) {
+      box.innerHTML = '';
+      _aiDisplayMessages.forEach(m => {
+        const el = document.createElement('div');
+        el.className = `ai-msg ${m.role}`;
+        el.textContent = m.text;
+        box.appendChild(el);
+      });
+      box.scrollTop = box.scrollHeight;
+    }
+    if (saved.open) document.getElementById('ai-chat-panel').classList.add('open');
+  }
+
+  restoreAiChatState();
+
+  function toggleAiChat() {
+    document.getElementById('ai-chat-panel').classList.toggle('open');
+    saveAiChatState();
+  }
+
+  function toggleTicketForm() {
+    const form = document.getElementById('ai-ticket-form');
+    const isOpen = form.classList.toggle('open');
+    if (isOpen) {
+      document.getElementById('ai-ticket-subject').value = '';
+      document.getElementById('ai-ticket-description').value = '';
+      document.getElementById('ai-ticket-error').style.display = 'none';
+    }
+  }
+
+  async function submitTicketForm() {
+    const subject = document.getElementById('ai-ticket-subject').value.trim();
+    const description = document.getElementById('ai-ticket-description').value.trim();
+    const errBox = document.getElementById('ai-ticket-error');
+    errBox.style.display = 'none';
+
+    if (!subject) {
+      errBox.textContent = 'Please describe the problem in a few words.';
+      errBox.style.display = 'block';
+      return;
+    }
+
+    const btn = document.getElementById('ai-ticket-submit-btn');
+    btn.disabled = true; btn.textContent = 'Raising…';
+    try {
+      const res = await fetch('/api/help-tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, description }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errBox.textContent = data.error || 'Could not raise the ticket — please try again.';
+        errBox.style.display = 'block';
+        return;
+      }
+      toggleTicketForm();
+      aiAppendMessage('assistant', `Ticket raised: "${subject}" — the team will follow up.`);
+    } catch (e) {
+      errBox.textContent = 'Network error — please try again.';
+      errBox.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Raise Ticket';
+    }
+  }
+
+  function aiAppendMessage(role, text, persist = true) {
+    const box = document.getElementById('ai-chat-messages');
+    const el = document.createElement('div');
+    el.className = `ai-msg ${role}`;
+    el.textContent = text;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+    // The transient "Thinking…" indicator is deliberately NOT persisted —
+    // if the page gets reloaded mid-request (the whole reason this fix
+    // exists), that specific in-flight request is genuinely lost in a
+    // multi-page app; there's no stuck "Thinking…" left behind on return,
+    // just the conversation up to the last real message.
+    if (persist) {
+      _aiDisplayMessages.push({ role, text });
+      saveAiChatState();
+    }
+    return el;
+  }
+
+  async function sendAiChatMessage() {
+    if (_aiChatBusy) return;
+    const input = document.getElementById('ai-chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+    input.value = '';
+
+    aiAppendMessage('user', message);
+    const typingEl = aiAppendMessage('assistant typing', 'Thinking…', false);
+    _aiChatBusy = true;
+    document.getElementById('ai-chat-send-btn').disabled = true;
+
+    try {
+      const res = await fetch('/api/assistant/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, history: _aiChatHistory }),
+      });
+      const data = await res.json();
+      typingEl.remove();
+      if (!res.ok) {
+        aiAppendMessage('error', data.error || 'Something went wrong.');
+        return;
+      }
+      _aiChatHistory = data.history || _aiChatHistory;
+      aiAppendMessage('assistant', data.reply || '(no response)');
+    } catch (e) {
+      typingEl.remove();
+      aiAppendMessage('error', 'Network error — please try again.');
+    } finally {
+      _aiChatBusy = false;
+      document.getElementById('ai-chat-send-btn').disabled = false;
+    }
+  }
+</script>
+{% else %}
+<script>
+  // Runs on any page reached without an active session — which is
+  // exactly what happens right after logout (redirected to /login).
+  // Clears the assistant's saved conversation so the NEXT person to log
+  // in on this same browser tab never sees the previous user's chat
+  // history — both a UX reset and, since conversations can reference
+  // real project/defect data, a privacy matter.
+  try { sessionStorage.removeItem('drogoAiChatState'); } catch (e) {}
+</script>
+{% endif %}
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

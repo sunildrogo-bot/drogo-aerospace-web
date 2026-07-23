@@ -1,0 +1,710 @@
+{% extends "base.html" %}
+{% block title %}{{ project.asset_name }} — 3D Inspection{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css">
+<style>
+  html, body { overflow: hidden; }
+  .chim-page{height:100vh;display:flex;flex-direction:column;background:var(--bg-base);}
+  .chim-infobar{display:flex;align-items:center;gap:16px;padding:10px 22px;background:var(--bg-panel);border-bottom:1px solid var(--border-soft);flex-shrink:0;flex-wrap:wrap;}
+  .chim-title{font-size:14px;font-weight:800;color:var(--text-primary);}
+  .chim-chip{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border);color:var(--text-secondary);background:var(--bg-elevated-2);}
+  .chim-infobar .spacer{flex:1;}
+
+  .chim-stage{position:relative;flex:1;background:#1b1e24;}
+  #cesiumContainer{position:absolute;inset:0;}
+  /* Hide Cesium ion watermark / credits entirely */
+  .cesium-viewer-bottom,.cesium-widget-credits,.cesium-credit-expand-link,.cesium-credit-lightbox-overlay{display:none !important;}
+
+  /* ── Upload overlay ── */
+  .upload-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg-base);z-index:50;}
+  .upload-box{width:420px;border:2px dashed var(--border-strong);border-radius:var(--radius-lg);background:var(--bg-elevated);padding:36px 32px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;}
+  .upload-box:hover,.upload-box.drag{border-color:var(--accent);background:rgba(63,66,73,.04);}
+  .upload-box h3{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px;}
+  .upload-box p{font-size:12.5px;color:var(--text-muted);line-height:1.6;}
+  .upload-box .icn{font-size:30px;margin-bottom:10px;}
+  .upload-status{margin-top:14px;font-size:12.5px;}
+  .upload-status.error{color:var(--danger);}
+  .upload-status.ok{color:var(--success);}
+  .upload-progress-track{margin-top:12px;height:8px;border-radius:5px;background:var(--bg-base);overflow:hidden;display:none;border:1px solid var(--border-soft);}
+  .upload-progress-track.show{display:block;}
+  .upload-progress-fill{height:100%;width:0%;background:var(--accent);border-radius:5px;transition:width .15s ease;}
+  .upload-progress-fill.indeterminate{width:35% !important;animation:upload-indeterminate 1.1s ease-in-out infinite;}
+  @keyframes upload-indeterminate{0%{margin-left:0%;}50%{margin-left:65%;}100%{margin-left:0%;}}
+  .upload-progress-pct{margin-top:6px;font-size:11px;color:var(--text-muted);}
+
+  /* ═══════════════════════════════════════════════════
+     MAIN TOOLBAR — glass pill, top-left of viewport
+  ═══════════════════════════════════════════════════ */
+  .chim-toolbar{
+    position:absolute;top:14px;left:14px;z-index:40;
+    display:none;flex-direction:row;align-items:center;gap:2px;
+    background:rgba(18,21,27,.86);
+    border:1px solid rgba(255,255,255,.11);
+    border-radius:12px;
+    padding:5px 7px;
+    backdrop-filter:blur(10px);
+    box-shadow:0 6px 24px rgba(0,0,0,.4);
+  }
+  .tool-divider{width:1px;height:20px;background:rgba(255,255,255,.12);margin:0 3px;flex-shrink:0;}
+  .tool-btn{
+    background:transparent;color:rgba(255,255,255,.8);
+    border:none;border-radius:8px;
+    padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;gap:6px;white-space:nowrap;
+    transition:background .12s,color .12s;flex-shrink:0;
+  }
+  .tool-btn:hover{background:rgba(255,255,255,.09);color:#fff;}
+  .tool-btn.active{background:var(--accent);color:#fff !important;}
+
+  /* ═══════════════════════════════════════════════════
+     MAP STYLE DROPDOWN — right side of infobar, before
+     the Generate Report button. Dark / Satellite / OSM,
+     each with its own on/off switch (mutually exclusive —
+     turning one on turns the others off automatically).
+  ═══════════════════════════════════════════════════ */
+  .map-style-dropdown{position:relative;flex-shrink:0;}
+  .map-style-toggle{display:flex;align-items:center;gap:6px;}
+  .ms-caret{font-size:10px;transition:transform .15s;display:inline-block;}
+  .map-style-dropdown.open .ms-caret{transform:rotate(180deg);}
+  .map-style-menu{
+    position:absolute;top:calc(100% + 8px);right:0;z-index:60;
+    min-width:200px;
+    background:var(--bg-elevated);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:8px;
+    box-shadow:0 12px 32px rgba(0,0,0,.35);
+    display:none;flex-direction:column;gap:2px;
+  }
+  .map-style-menu.open{display:flex;}
+  .ms-row{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:8px 8px;border-radius:8px;
+  }
+  .ms-row:hover{background:var(--bg-elevated-2);}
+  .ms-label{font-size:12.5px;font-weight:600;color:var(--text-primary);}
+  .ms-switch{
+    position:relative;flex-shrink:0;
+    width:36px;height:20px;border-radius:20px;
+    background:var(--border-strong);border:none;cursor:pointer;
+    transition:background .15s;padding:0;
+  }
+  .ms-switch .ms-knob{
+    position:absolute;top:2px;left:2px;
+    width:16px;height:16px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);
+    transition:transform .15s;
+  }
+  .ms-switch.active{background:var(--accent);}
+  .ms-switch.active .ms-knob{transform:translateX(16px);}
+
+
+  /* KML button inherits same style */
+  .tool-btn-kml{
+    background:transparent;color:rgba(255,255,255,.8);
+    border:none;border-radius:8px;
+    padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;gap:6px;white-space:nowrap;
+    position:relative;transition:background .12s,color .12s;flex-shrink:0;
+  }
+  .tool-btn-kml:hover{background:rgba(255,255,255,.09);color:#fff;}
+  .kml-badge{
+    position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;
+    border-radius:8px;background:var(--accent);font-size:9px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;color:#fff;padding:0 3px;
+  }
+  .defect-list-badge{
+    background:rgba(255,255,255,.18);color:#fff;font-size:10px;font-weight:700;
+    border-radius:8px;padding:1px 6px;min-width:16px;text-align:center;display:none;
+  }
+
+  /* ═══════════════════════════════════════════════════
+     KML MODAL
+  ═══════════════════════════════════════════════════ */
+  .kml-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none;align-items:center;justify-content:center;}
+  .kml-modal-backdrop.open{display:flex;}
+  .kml-modal{width:480px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 24px 60px rgba(0,0,0,.35);padding:28px 28px 24px;}
+  .kml-modal h2{font-size:15px;font-weight:800;color:var(--text-primary);margin-bottom:4px;}
+  .kml-modal .subtitle{font-size:12px;color:var(--text-muted);margin-bottom:20px;}
+  .kml-drop-zone{border:2px dashed var(--border-strong);border-radius:var(--radius-md);padding:28px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:14px;}
+  .kml-drop-zone:hover,.kml-drop-zone.drag{border-color:var(--accent);background:rgba(63,66,73,.06);}
+  .kml-drop-zone .kml-icn{font-size:28px;margin-bottom:8px;}
+  .kml-drop-zone p{font-size:12.5px;color:var(--text-muted);}
+  .kml-drop-zone strong{color:var(--text-primary);}
+  .kml-file-chip{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--bg-elevated-2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:14px;font-size:12.5px;color:var(--text-primary);}
+  .kml-file-chip .kml-remove{margin-left:auto;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:15px;line-height:1;}
+  .kml-file-chip .kml-remove:hover{color:var(--danger);}
+  .kml-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;}
+  .kml-modal-actions button{font-size:12.5px;padding:8px 18px;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;border:1px solid var(--border-strong);background:transparent;color:var(--text-primary);}
+  .kml-modal-actions .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .kml-modal-actions .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+  .kml-status{font-size:12px;margin-bottom:10px;display:none;}
+  .kml-status.error{color:var(--danger);display:block;}
+  .kml-status.ok{color:var(--success);display:block;}
+
+  /* KML layers list inside panel */
+  .kml-layer-section{border-top:1px solid var(--border-soft);padding:10px 16px 6px;flex-shrink:0;}
+  .kml-layer-head{font-size:10px;font-weight:800;color:var(--text-secondary);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}
+  .kml-layer-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border-soft);font-size:12px;color:var(--text-primary);}
+  .kml-layer-item:last-child{border-bottom:none;}
+  .kml-layer-item .kml-layer-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .kml-layer-toggle{width:28px;height:15px;border-radius:10px;background:var(--accent);border:none;cursor:pointer;position:relative;flex-shrink:0;}
+  .kml-layer-toggle.off{background:var(--border-strong);}
+  .kml-layer-toggle::after{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#fff;transition:left .15s;}
+  .kml-layer-toggle.off::after{left:2px;}
+  .kml-layer-toggle:not(.off)::after{left:15px;}
+  .kml-layer-del{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 4px;}
+  .kml-layer-del:hover{color:var(--danger);}
+
+  /* ═══════════════════════════════════════════════════
+     OBSERVATIONS PANEL — right side, hidden by default
+  ═══════════════════════════════════════════════════ */
+  .chim-panel{
+    position:absolute;top:0;right:0;bottom:0;width:365px;
+    display:none;flex-direction:column;
+    background:#f4f6f9;
+    border-left:1px solid #d8dde6;
+    box-shadow:-8px 0 32px rgba(0,0,0,.18);
+    z-index:40;
+    /* no overflow:hidden here so scrollbar works properly */
+  }
+  .chim-panel-head{
+    padding:13px 16px 10px;
+    background:#fff;border-bottom:1px solid #e2e7ef;
+    flex-shrink:0;
+  }
+  .chim-panel-head-row{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;
+  }
+  .chim-panel-head h2{font-size:15px;font-weight:800;color:#1a1d23;margin:0;}
+  .chim-panel-close{
+    background:none;border:none;width:28px;height:28px;border-radius:7px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;color:#888;cursor:pointer;transition:background .12s;
+  }
+  .chim-panel-close:hover{background:#eef0f4;color:#333;}
+  .obs-count{font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:7px;}
+  .obs-filters{display:flex;gap:7px;flex-wrap:wrap;}
+  .obs-filter-select{
+    flex:1;min-width:110px;font-size:11.5px;padding:6px 9px;
+    border:1px solid #d0d5dd;border-radius:8px;background:#fff;
+    color:#333;cursor:pointer;outline:none;
+  }
+  .obs-filter-select:focus{border-color:var(--accent);}
+
+  /* Scrollable list — takes remaining height */
+  .defect-list-body{
+    flex:1;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:12px 13px 16px;
+    display:flex;flex-direction:column;gap:11px;
+    /* custom thin scrollbar */
+    scrollbar-width:thin;
+    scrollbar-color:#c5cad4 transparent;
+  }
+  .defect-list-body::-webkit-scrollbar{width:5px;}
+  .defect-list-body::-webkit-scrollbar-track{background:transparent;}
+  .defect-list-body::-webkit-scrollbar-thumb{background:#c5cad4;border-radius:10px;}
+  .defect-list-body::-webkit-scrollbar-thumb:hover{background:#9aa0ad;}
+
+  /* ── Observation card ── */
+  .obs-card{
+    background:#fff;border:1px solid #e6e9ef;border-left:3px solid #c5cad4;
+    border-radius:10px;overflow:hidden;cursor:pointer;
+    transition:box-shadow .15s,transform .15s;
+    flex-shrink:0;box-shadow:0 1px 2px rgba(20,22,28,.04);
+    padding:11px 14px 12px;
+  }
+  .obs-card:hover{box-shadow:0 6px 18px rgba(20,22,28,.1);transform:translateY(-1px);}
+  .obs-card.active-card{box-shadow:0 0 0 2px rgba(42,157,110,.25);}
+  .obs-card.sevb-Minor{border-left-color:#1f9d68;}
+  .obs-card.sevb-Moderate{border-left-color:#b9821f;}
+  .obs-card.sevb-Critical{border-left-color:#c94b42;}
+  .obs-card-top{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
+  .obs-id{font-size:10.5px;font-weight:700;color:#9aa0ad;letter-spacing:.03em;}
+  .obs-sev-tag{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:20px;border:1.5px solid;}
+  .obs-sev-tag.sev-Minor{color:#1f9d68;border-color:#1f9d68;background:rgba(31,157,104,.07);}
+  .obs-sev-tag.sev-Moderate{color:#b9821f;border-color:#b9821f;background:rgba(185,130,31,.07);}
+  .obs-sev-tag.sev-Critical{color:#c94b42;border-color:#c94b42;background:rgba(201,75,66,.07);}
+  .obs-card-actions{margin-left:auto;display:flex;gap:5px;}
+  .obs-card-actions button{
+    background:none;border:1.5px solid;border-radius:7px;
+    width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:13px;transition:background .12s;flex-shrink:0;
+  }
+  .obs-btn-edit{border-color:#d8dde6;color:#8a94a6;}
+  .obs-btn-edit:hover{border-color:#2a9d6e;color:#2a9d6e;background:rgba(42,157,110,.08);}
+  .obs-btn-del{border-color:#d8dde6;color:#8a94a6;}
+  .obs-btn-del:hover{border-color:#c94b42;color:#c94b42;background:rgba(201,75,66,.08);}
+  .obs-btn-dl{border-color:#d8dde6;color:#8a94a6;}
+  .obs-btn-dl:hover{border-color:#5b8ef5;color:#5b8ef5;background:rgba(91,142,245,.08);}
+  .obs-btn-info{border-color:#d8dde6;color:#8a94a6;}
+  .obs-btn-info:hover{border-color:#9b6bf0;color:#9b6bf0;background:rgba(155,107,240,.08);}
+
+  .obs-title-line{font-size:13.5px;font-weight:700;color:#1a1d23;margin-bottom:2px;}
+  .obs-meta-line{font-size:11.5px;color:#8a94a6;}
+  .defect-empty{padding:30px 18px;font-size:12.5px;color:#9aa0ad;text-align:center;}
+
+  /* ── Add Defect form (slide-in from right) ── */
+  .defect-form{
+    position:fixed;top:0;right:0;bottom:0;width:320px;z-index:70;
+    background:var(--bg-elevated);border-left:1px solid var(--border);
+    box-shadow:-12px 0 40px rgba(0,0,0,.32);padding:0;
+    display:none;flex-direction:column;overflow:hidden;
+    transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);
+  }
+  .defect-form.open{display:flex;transform:translateX(0);}
+  .defect-form-header{padding:18px 20px 14px;border-bottom:1px solid var(--border-soft);background:var(--bg-panel);flex-shrink:0;}
+  .defect-form-header h3{font-size:14px;font-weight:800;color:var(--text-primary);margin:0 0 2px;}
+  .defect-form-header p{font-size:11px;color:var(--text-muted);margin:0;}
+  .defect-form-body{flex:1;overflow-y:auto;padding:16px 20px;}
+  .defect-form .field{margin-bottom:12px;}
+  .defect-form label{font-size:10.5px;font-weight:700;color:var(--text-secondary);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:4px;}
+  .defect-form input,.defect-form select,.defect-form textarea{width:100%;font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated-2);font-family:var(--font);color:var(--text-primary);box-sizing:border-box;}
+  .defect-form input[readonly]{background:var(--bg-base);color:var(--text-muted);cursor:default;}
+  .defect-form textarea{resize:vertical;min-height:56px;}
+  .defect-form .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .defect-form-actions{padding:14px 20px;border-top:1px solid var(--border-soft);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;background:var(--bg-panel);}
+  .defect-form-actions button{font-size:12px;padding:8px 16px;border-radius:6px;cursor:pointer;border:1px solid var(--border-strong);background:transparent;color:var(--text-primary);font-weight:600;}
+  .defect-form-actions .save{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  /* ═══════════════════════════════════════════════════
+     DRAW TOOLBAR — compact vertical card, left side
+  ═══════════════════════════════════════════════════ */
+  .draw-toolbar{
+    position:absolute;top:58px;left:14px;z-index:41;
+    display:none;flex-direction:column;gap:4px;
+    background:rgba(18,21,27,.88);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:11px;padding:9px 7px;
+    backdrop-filter:blur(8px);
+    box-shadow:0 8px 28px rgba(0,0,0,.36);
+    min-width:140px;
+  }
+  .draw-toolbar.visible{display:flex;}
+  .draw-toolbar-title{
+    font-size:9px;font-weight:800;color:rgba(255,255,255,.38);
+    letter-spacing:.1em;text-transform:uppercase;text-align:center;
+    padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:1px;
+  }
+  .draw-tool-btn{
+    background:rgba(255,255,255,.06);color:rgba(255,255,255,.85);
+    border:1px solid rgba(255,255,255,.1);border-radius:8px;
+    padding:8px 11px;font-size:11.5px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;gap:8px;white-space:nowrap;
+    transition:background .12s;width:100%;
+  }
+  .draw-tool-btn:hover{background:rgba(255,255,255,.13);}
+  .draw-tool-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .draw-confirm-btn{
+    background:rgba(31,157,104,.85);color:#fff;border:1px solid #1f9d68;
+    border-radius:8px;padding:7px 11px;font-size:11.5px;font-weight:700;
+    cursor:pointer;display:none;align-items:center;gap:6px;margin-top:2px;
+  }
+  .draw-confirm-btn:hover{background:#1f9d68;}
+  .draw-cancel-btn{
+    background:transparent;color:rgba(255,255,255,.45);
+    border:1px solid rgba(255,255,255,.09);border-radius:8px;
+    padding:6px 11px;font-size:11px;font-weight:600;cursor:pointer;margin-top:1px;
+  }
+  .draw-cancel-btn:hover{background:rgba(255,255,255,.08);color:#fff;}
+
+  .btn-icon-ghost{
+    font-size:15px;font-weight:600;width:34px;height:34px;padding:0;
+    border-radius:var(--radius-sm,6px);border:1px solid var(--border-strong);
+    background:transparent;color:var(--text-secondary);cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;
+    transition:border-color .15s,color .15s,background .15s;
+  }
+  .btn-icon-ghost:hover{color:var(--text-primary);background:rgba(63,66,73,.06);}
+
+
+
+  /* ── Saved-image lightbox ── */
+  .img-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:none;align-items:center;justify-content:center;}
+  .img-modal-backdrop.open{display:flex;}
+  .img-modal{position:relative;max-width:90vw;max-height:88vh;}
+  .img-modal img{max-width:90vw;max-height:88vh;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:block;}
+  .img-modal-close{position:absolute;top:-14px;right:-14px;width:32px;height:32px;border-radius:50%;background:#fff;border:none;cursor:pointer;font-size:16px;box-shadow:0 4px 14px rgba(0,0,0,.3);}
+
+  /* Measure + hint overlays */
+  .measure-readout{position:absolute;bottom:16px;left:16px;z-index:40;background:rgba(18,21,27,.88);color:#fff;padding:8px 14px;border-radius:20px;font-size:12.5px;display:none;border:1px solid rgba(255,255,255,.1);}
+  .measure-readout.open{display:block;}
+  .hint-toast{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:45;background:rgba(18,21,27,.88);color:#fff;padding:7px 18px;border-radius:20px;font-size:12px;display:none;border:1px solid rgba(255,255,255,.1);pointer-events:none;}
+  .hint-toast.open{display:block;}
+
+  /* ── Model streaming feedback ──────────────────────────────────────────
+     Full overlay while the tileset first streams in at the opening view,
+     so the model appears fully rendered on reveal instead of visibly
+     sharpening in front of the user. A small non-blocking badge covers
+     later re-streaming while zooming/panning around. */
+  .model-loading-overlay{position:absolute;inset:0;z-index:35;display:none;align-items:center;justify-content:center;background:rgba(27,30,36,.55);backdrop-filter:blur(2px);pointer-events:none;}
+  .model-loading-overlay.show{display:flex;}
+  .model-loading-box{display:flex;flex-direction:column;align-items:center;gap:10px;color:#fff;font-size:12.5px;font-weight:600;}
+  .model-loading-spinner{width:34px;height:34px;border:3px solid rgba(255,255,255,.25);border-top-color:var(--accent);border-radius:50%;animation:model-spin .8s linear infinite;}
+  @keyframes model-spin{to{transform:rotate(360deg);}}
+  .refining-badge{position:absolute;bottom:16px;right:16px;z-index:40;background:rgba(18,21,27,.82);color:#fff;padding:6px 12px;border-radius:20px;font-size:11.5px;display:none;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.1);pointer-events:none;}
+
+  /* Compass — pinned to the top-right, just under the toolbar (so it never
+     sits in the middle of the model view, and clears the findings panel's
+     header when that panel is open). Exact `top` is set from JS to match
+     the toolbar's actual rendered height rather than a guessed pixel
+     value, since that row wraps at narrow widths. */
+  .chim-compass{
+    position:fixed;top:110px;right:22px;z-index:80;
+    width:104px;height:104px;pointer-events:none;user-select:none;
+  }
+  .chim-compass-ring{
+    position:absolute;inset:0;border-radius:50%;
+    background:rgba(18,21,27,.72);border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 6px 20px rgba(0,0,0,.35);backdrop-filter:blur(3px);
+  }
+  .chim-compass-tick{
+    position:absolute;top:50%;left:50%;font-size:10px;font-weight:700;color:rgba(255,255,255,.55);
+    transform-origin:0 0;white-space:nowrap;
+  }
+  .chim-compass-tick.major{font-size:11.5px;color:#fff;font-weight:800;}
+  .chim-compass-needle{
+    position:absolute;left:50%;top:50%;width:20px;height:70px;
+    margin-left:-10px;margin-top:-35px;transform-origin:50% 50%;
+    transition:transform .08s linear;
+  }
+  .chim-compass-hub{
+    position:absolute;top:50%;left:50%;width:8px;height:8px;margin:-4px 0 0 -4px;
+    border-radius:50%;background:#fff;box-shadow:0 0 0 2px rgba(18,21,27,.8);
+  }
+  .chim-compass-readout{
+    position:absolute;left:50%;bottom:-26px;transform:translateX(-50%);
+    background:rgba(18,21,27,.82);color:#fff;padding:4px 10px;border-radius:20px;
+    font-size:11px;font-weight:700;letter-spacing:.03em;white-space:nowrap;
+    border:1px solid rgba(255,255,255,.1);
+  }
+  @media (max-width:900px){
+    .chim-compass{width:80px;height:80px;right:12px;}
+    .chim-compass-needle{width:14px;height:47px;margin-left:-7px;margin-top:-23.5px;}
+  }
+  .refining-badge.show{display:flex;}
+  .refining-badge .rb-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:model-spin 1s linear infinite,rb-pulse 1s ease-in-out infinite;}
+  @keyframes rb-pulse{0%,100%{opacity:.4;}50%{opacity:1;}}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="chim-page">
+  <nav class="navbar">
+    <a href="{{ url_for('home') }}" class="nav-brand">
+      <svg class="nav-brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 22V11L9 4H13L15 11V22" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><line x1="6" y1="15" x2="16" y2="15" stroke="currentColor" stroke-width="1.2"/><path d="M9 4L7.5 1H14.5L13 4" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+      DROGO AEROSPACE
+    </a>
+    <div class="nav-actions">
+      <div class="nav-user">3D Inspection <span>/ {{ project.asset_name }}</span></div>
+      <a href="{{ url_for('chimney_bp.chimney_dashboard') }}" class="btn-logout">← Back</a>
+    </div>
+  </nav>
+
+  <div class="chim-infobar">
+    <div class="chim-title">{{ project.asset_name }}</div>
+    <span class="chim-chip">{{ project.structure_type or 'Structure type not set' }}</span>
+    <span class="chim-chip">{{ project.inspection_type or 'Inspection type not set' }}</span>
+    <span class="chim-chip">{{ '%.5f'|format(project.latitude) }}, {{ '%.5f'|format(project.longitude) }}</span>
+    <div class="spacer"></div>
+    {% if project.tileset_path %}
+    <div class="map-style-dropdown" id="map-style-dropdown">
+      <button class="btn-ghost map-style-toggle" id="map-style-toggle" onclick="toggleMapStyleMenu(event)">
+        🗺️ Map Style: <span id="map-style-current">Dark</span> <span class="ms-caret">▾</span>
+      </button>
+      <div class="map-style-menu" id="map-style-menu">
+        <div class="ms-row">
+          <span class="ms-label">🌑 Cesium Dark</span>
+          <button class="ms-switch active" id="ms-switch-dark" role="switch" aria-checked="true" onclick="setMapStyle('dark')"><span class="ms-knob"></span></button>
+        </div>
+        <div class="ms-row">
+          <span class="ms-label">🛰️ Satellite</span>
+          <button class="ms-switch" id="ms-switch-satellite" role="switch" aria-checked="false" onclick="setMapStyle('satellite')"><span class="ms-knob"></span></button>
+        </div>
+        <div class="ms-row">
+          <span class="ms-label">🗺️ OpenStreetMap</span>
+          <button class="ms-switch" id="ms-switch-osm" role="switch" aria-checked="false" onclick="setMapStyle('osm')"><span class="ms-knob"></span></button>
+        </div>
+      </div>
+    </div>
+    <a class="btn-ghost" href="{{ url_for('chimney_bp.chimney_detail', chimney_id=project.id) }}" title="Open/closed defect status, timeline, pilots, and project access">📊 Project Overview</a>
+    <button class="btn-primary" id="btn-generate-report" onclick="generateChimneyReport()">📄 Generate Report</button>
+    {% endif %}
+  </div>
+
+  <script>
+    window.CHIM_IS_ADMIN = {{ is_admin|tojson }};
+    window.CHIM_INSPECTION_SCOPE = {{ (project.inspection_scope or '')|tojson }};
+  </script>
+
+  <div class="chim-stage">
+    <div id="cesiumContainer"></div>
+
+    {% if project.tileset_path %}
+    <!-- Compass — shows which way the camera is currently facing while
+         orbiting/panning around the model. Ring is fixed (true N/NE/E/…
+         stay put); the needle rotates to the camera's current heading,
+         and the readout below the ring gives the precise 16-point
+         direction (e.g. "SSW") plus degrees. -->
+    <div class="chim-compass" id="chim-compass">
+      <div class="chim-compass-ring" id="chim-compass-ring"></div>
+      <div class="chim-compass-needle" id="chim-compass-needle">
+        <svg viewBox="0 0 20 70" width="20" height="70">
+          <polygon points="10,0 16,20 10,15 4,20" fill="#e2574c"/>
+          <polygon points="10,70 16,50 10,55 4,50" fill="#c7ccd6"/>
+        </svg>
+      </div>
+      <div class="chim-compass-hub"></div>
+      <div class="chim-compass-readout" id="chim-compass-readout">N · 0°</div>
+    </div>
+    {% endif %}
+
+    {% if cover_snapshot_url %}
+    <img id="cover-snapshot" src="{{ cover_snapshot_url }}" alt=""
+         style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:20;transition:opacity .5s ease;" />
+    {% endif %}
+
+    <div class="model-loading-overlay" id="model-loading-overlay">
+      <div class="model-loading-box">
+        <div class="model-loading-spinner"></div>
+        <div id="model-loading-label">Preparing high-resolution view…</div>
+      </div>
+    </div>
+    <div class="refining-badge" id="refining-badge"><span class="rb-dot"></span> Refining detail…</div>
+
+    {% if not project.tileset_path %}
+      {% if is_admin %}
+      <div class="upload-overlay" id="upload-overlay">
+        <div>
+          <div class="upload-box" id="upload-box" onclick="document.getElementById('tileset-input').click()">
+            <div class="icn">⛰️</div>
+            <h3>Upload the 3D model</h3>
+            <p>Drag &amp; drop a <b>.3tz</b> or <b>.zip</b> archive containing<br/><code>tileset.json</code>, or click to choose a file.</p>
+            <div class="upload-status" id="upload-status"></div>
+            <div class="upload-progress-track" id="upload-progress-track">
+              <div class="upload-progress-fill" id="upload-progress-fill"></div>
+            </div>
+            <div class="upload-progress-pct" id="upload-progress-pct"></div>
+          </div>
+          <input type="file" id="tileset-input" accept=".3tz,.zip" style="display:none;"/>
+        </div>
+      </div>
+      {% else %}
+      <div class="upload-overlay" id="upload-overlay">
+        <div class="upload-box" style="cursor:default;">
+          <div class="icn">⛰️</div>
+          <h3>3D model not uploaded yet</h3>
+          <p>The inspection admin hasn't uploaded the 3D model for this chimney yet.<br/>Check back soon.</p>
+        </div>
+      </div>
+      {% endif %}
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════
+         MAIN TOOLBAR — glass pill, top-left
+    ═══════════════════════════════════════════════════ -->
+    <div class="chim-toolbar" id="chim-toolbar" style="display:none;">
+      {% if is_admin %}
+      <button class="tool-btn" id="btn-add-defect" onclick="chimToggleDefectMode()">📍 Add Finding</button>
+      <div class="tool-divider"></div>
+      {% endif %}
+      <button class="tool-btn" id="btn-measure" onclick="chimToggleMeasureMode()">📏 Measure</button>
+      <div class="tool-divider"></div>
+      <button class="tool-btn" onclick="chimResetView()">🎯 Reset View</button>
+      {% if is_admin %}
+      <div class="tool-divider"></div>
+      <button class="tool-btn-kml" id="btn-kml-upload" onclick="openKmlModal()">
+        🗺️ KML
+        <span class="kml-badge" id="kml-layer-count" style="display:none;">0</span>
+      </button>
+      {% endif %}
+      <div class="tool-divider"></div>
+      <button class="tool-btn" id="btn-defect-list" onclick="toggleObservationsPanel()">
+        📋 Defect List
+        <span class="defect-list-badge" id="defect-list-badge"></span>
+      </button>
+    </div>
+
+    {% if is_admin %}
+    <!-- ═══════════════════════════════════════════════════
+         DRAW TOOLBAR — compact card, left side below main
+    ═══════════════════════════════════════════════════ -->
+    <div class="draw-toolbar" id="draw-toolbar">
+      <div class="draw-toolbar-title">Draw Defect</div>
+      <button class="draw-tool-btn" id="draw-line"    onclick="setDrawTool('line')">╱ Line</button>
+      <button class="draw-tool-btn" id="draw-rect"    onclick="setDrawTool('rect')">▭ Rectangle</button>
+      <button class="draw-tool-btn" id="draw-polygon" onclick="setDrawTool('polygon')">⬡ Polygon</button>
+      <button class="draw-tool-btn" id="draw-circle"  onclick="setDrawTool('circle')">○ Circle</button>
+      <button class="draw-confirm-btn" id="draw-confirm-btn" onclick="finaliseDrawing()">✓ Done</button>
+      <button class="draw-cancel-btn" onclick="cancelDrawTool()">✕ Cancel</button>
+    </div>
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════
+         OBSERVATIONS PANEL — right side, hidden by default
+    ═══════════════════════════════════════════════════ -->
+    <div class="chim-panel" id="chim-toolbar-panel">
+      <div class="chim-panel-head">
+        <div class="chim-panel-head-row">
+          <h2>Chimney Observations</h2>
+          <button class="chim-panel-close" onclick="toggleObservationsPanel()" title="Close">✕</button>
+        </div>
+        <div class="obs-count" id="defect-count-badge"></div>
+        <div class="obs-filters">
+          <select class="obs-filter-select" id="obs-filter-severity" onchange="filterObservations()">
+            <option value="">All Severity</option>
+            <option value="Minor">Minor</option>
+            <option value="Moderate">Moderate</option>
+            <option value="Critical">Critical</option>
+          </select>
+          <select class="obs-filter-select" id="obs-filter-type" onchange="filterObservations()">
+            <option value="">All Types</option>
+          </select>
+        </div>
+      </div>
+      <!-- Scrollable defect list -->
+      <div class="defect-list-body" id="defect-list"></div>
+      <div id="kml-layers-section"></div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         ADD DEFECT FORM — slide-in panel
+    ═══════════════════════════════════════════════════ -->
+    <div class="defect-form" id="defect-form">
+      <div class="defect-form-header">
+        <h3>📍 Add Defect Finding</h3>
+        <p>Fill in the details below and save to record the marking.</p>
+      </div>
+      <div class="defect-form-body">
+        <div class="field">
+          <label>Title</label>
+          <input id="df-title" placeholder="e.g. Surface spalling"/>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Defect Type</label>
+            <select id="df-defect-type" onchange="chimToggleOtherDefectType()">
+              <option>Crack</option>
+              <option>Spalling</option>
+              <option>Corrosion</option>
+              <option>Erosion</option>
+              <option>Delamination</option>
+              <option>Water Ingress</option>
+              <option>Structural Gap</option>
+              <option>Efflorescence</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Severity</label>
+            <select id="df-severity">
+              <option>Minor</option>
+              <option>Moderate</option>
+              <option>Critical</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" id="df-defect-type-other-wrap" style="display:none;">
+          <label>Specify Defect Type</label>
+          <input id="df-defect-type-other" placeholder="Enter the defect type…"/>
+        </div>
+        <div class="field">
+          <label>Location <span style="font-weight:400;text-transform:none;">(enter manually)</span></label>
+          <input id="df-location" placeholder="e.g. North face, near flange, 3rd course"/>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Latitude</label>
+            <input id="df-lat" readonly placeholder="auto"/>
+          </div>
+          <div class="field">
+            <label>Longitude</label>
+            <input id="df-lon" readonly placeholder="auto"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Height from Ground</label>
+            <input id="df-height" readonly placeholder="auto-filled from model"/>
+          </div>
+          <div class="field">
+            <label>Direction</label>
+            <input id="df-direction" readonly placeholder="auto-filled"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Area / Extent</label>
+          <select id="df-area">
+            <option value="">— Select or auto-calculated —</option>
+            <option value="&lt;0.1 m²">&lt;0.1 m² (Hairline)</option>
+            <option value="0.1–0.5 m²">0.1–0.5 m² (Small)</option>
+            <option value="0.5–1 m²">0.5–1 m² (Medium-Small)</option>
+            <option value="1–5 m²">1–5 m² (Medium)</option>
+            <option value="5–10 m²">5–10 m² (Large)</option>
+            <option value="10–25 m²">10–25 m² (Very Large)</option>
+            <option value="&gt;25 m²">&gt;25 m² (Extensive)</option>
+            <option value="custom">Custom (enter in notes)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Notes / Recommendations</label>
+          <textarea id="df-notes" placeholder="Optional notes…"></textarea>
+        </div>
+      </div>
+      <div class="defect-form-actions">
+        <button onclick="chimCancelDefectForm()">Cancel</button>
+        <button class="save" onclick="chimSaveDefect()">Save Defect</button>
+      </div>
+    </div>
+
+    <!-- KML Upload Modal -->
+    <div class="kml-modal-backdrop" id="kml-modal-backdrop">
+      <div class="kml-modal">
+        <h2>Upload KML — Defect Overlay</h2>
+        <div class="subtitle">Upload a KML file containing defect markers, polygons or paths to overlay on the chimney model.</div>
+        <div class="kml-drop-zone" id="kml-drop-zone" onclick="document.getElementById('kml-file-input').click()">
+          <div class="kml-icn">📁</div>
+          <p><strong>Click to choose</strong> or drag &amp; drop a <b>.kml</b> file here</p>
+          <input type="file" id="kml-file-input" accept=".kml" style="display:none;" onchange="onKmlFileSelected(this.files[0])"/>
+        </div>
+        <div id="kml-selected-file" style="display:none;" class="kml-file-chip">
+          <span>📄</span>
+          <span id="kml-selected-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+          <button class="kml-remove" onclick="clearKmlSelection()">✕</button>
+        </div>
+        <div class="kml-status" id="kml-modal-status"></div>
+        <div class="kml-modal-actions">
+          <button onclick="closeKmlModal()">Cancel</button>
+          <button class="btn-primary" id="kml-upload-btn" onclick="uploadKml()" disabled>Load KML</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="measure-readout" id="measure-readout"></div>
+    <div class="hint-toast" id="hint-toast"></div>
+
+    <!-- Saved defect image lightbox -->
+    <div class="img-modal-backdrop" id="img-modal-backdrop" onclick="closeImageModal(event)">
+      <div class="img-modal">
+        <button class="img-modal-close" onclick="closeImageModal(event)">✕</button>
+        <img id="img-modal-img" src="" alt="Saved defect image"/>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
+<script>
+  window.CHIM_PROJECT_ID  = {{ project.id|tojson }};
+  window.CHIM_TILESET_URL = {{ (tileset_url)|tojson }};
+  window.CHIM_HAS_SNAPSHOT = {{ (cover_snapshot_url is not none)|tojson }};
+  window.CHIM_PROJECT_LAT = {{ project.latitude|tojson }};
+  window.CHIM_PROJECT_LNG = {{ project.longitude|tojson }};
+  window.CHIM_MODEL_CENTER_LAT = {{ project.model_center_lat|tojson }};
+  window.CHIM_MODEL_CENTER_LNG = {{ project.model_center_lng|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/chimney_viewer.js') }}"></script>
+{% endblock %}
